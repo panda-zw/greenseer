@@ -2,6 +2,10 @@
 
 Automated international job search agent. Scrapes jobs from multiple sources, uses AI to verify visa sponsorship eligibility, matches against your CV, generates country-formatted application documents, and tracks your applications — all from a single desktop app.
 
+[![Download Latest Release](https://img.shields.io/github/v/release/panda-zw/greenseer?label=Download&style=for-the-badge)](https://github.com/panda-zw/greenseer/releases/latest)
+
+![Greenseer Screenshot](assets/screenshot.png)
+
 ## Features
 
 - **Multi-source job scraping** — Adzuna API, LinkedIn, and Seek (AU/NZ)

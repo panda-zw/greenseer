@@ -82,7 +82,6 @@ export function JobFeed() {
   const setSortByAndReset = (v: string) => { setSortBy(v); setPage(1); };
 
   const { data, isLoading } = useQuery<FeedResponse>({
-    placeholderData: (previousData) => previousData,
     queryKey: ['job-feed', statusFilter, countryFilter, sortBy, page],
     queryFn: () => {
       const params = new URLSearchParams();
