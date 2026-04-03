@@ -11,6 +11,19 @@ await esbuild.build({
     '@prisma/client',
     '.prisma/client',
     'fsevents',
+    // Optional NestJS modules (loaded dynamically, not used)
+    '@nestjs/microservices',
+    '@nestjs/microservices/microservices-module',
+    '@nestjs/websockets',
+    '@nestjs/websockets/socket-module',
+    // Playwright internals (loaded at runtime, not bundleable)
+    'playwright-core',
+    'chromium-bidi',
+    'chromium-bidi/lib/cjs/bidiMapper/BidiMapper',
+    'chromium-bidi/lib/cjs/cdp/CdpConnection',
+    // Native modules
+    'sharp',
+    'tesseract.js',
   ],
   logLevel: 'info',
 });
