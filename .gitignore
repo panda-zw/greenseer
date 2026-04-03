@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+target/
+.next/
+out/
+
+# Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/binaries/greenseer-sidecar*
+
+# Database
+*.db
+*.db-journal
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Prisma
+apps/sidecar/prisma/migrations/**/migration_lock.toml
+
+# pkg output
+apps/sidecar/dist/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+Thumbs.db

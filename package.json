@@ -1,0 +1,31 @@
+{
+  "name": "greenseer",
+  "private": true,
+  "description": "Automated international job search agent",
+  "license": "MIT",
+  "author": "Panashe Mapika",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/panda-zw/greenseer.git"
+  },
+  "scripts": {
+    "dev": "pnpm -F @greenseer/desktop dev",
+    "dev:sidecar": "pnpm -F @greenseer/sidecar start:dev",
+    "dev:all": "concurrently \"pnpm dev:sidecar\" \"pnpm dev\"",
+    "build:shared": "pnpm -F @greenseer/shared build",
+    "build:sidecar": "pnpm -F @greenseer/sidecar build:binary",
+    "build:desktop": "pnpm -F @greenseer/desktop tauri build",
+    "build": "pnpm build:shared && pnpm build:sidecar && pnpm build:desktop",
+    "db:generate": "pnpm -F @greenseer/sidecar prisma:generate",
+    "db:migrate": "pnpm -F @greenseer/sidecar prisma:migrate",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
