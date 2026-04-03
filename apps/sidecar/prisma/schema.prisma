@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  source      String
+  externalId  String?
+  title       String
+  company     String
+  location    String
+  salary      String?
+  description String
+  url         String
+  fingerprint String   @unique
+  raw         String?
+  postedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  analysis    JobAnalysis?
+  matches     JobMatch[]
+  documents   GeneratedDocument[]
+  application Application?
+
+  @@index([source, createdAt])
+  @@index([createdAt])
+  @@map("jobs")
+}
+
+model JobAnalysis {
+  id                String   @id @default(cuid())
+  jobId             String   @unique
+  job               Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  visaSponsorship   Boolean
+  visaExplanation   String
+  sponsorTier       String    @default("unknown")
+  locationScopePass Boolean
+  scopeExplanation  String
+  overallEligible   Boolean
+  confidence        Float
+  countryCode       String
+
+  analyzedAt        DateTime @default(now())
+
+  @@index([overallEligible])
+  @@map("job_analysis")
+}
+
+model JobMatch {
+  id             String    @id @default(cuid())
+  jobId          String
+  job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  cvProfileId    String
+  cvProfile      CvProfile @relation(fields: [cvProfileId], references: [id], onDelete: Cascade)
+
+  matchScore     Int
+  matchedSkills  String    @default("[]")
+  missingSkills  String    @default("[]")
+  summary        String
+  recommendApply Boolean
+
+  analyzedAt     DateTime  @default(now())
+
+  @@unique([jobId, cvProfileId])
+  @@index([matchScore])
+  @@map("job_matches")
+}
+
+model CvProfile {
+  id        String   @id @default(cuid())
+  name      String
+  body      String
+  skills    String   @default("[]")
+  isDefault Boolean  @default(false)
+  versions  String   @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matches   JobMatch[]
+  documents GeneratedDocument[]
+
+  @@map("cv_profiles")
+}
+
+model GeneratedDocument {
+  id          String    @id @default(cuid())
+  jobId       String
+  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  cvProfileId String
+  cvProfile   CvProfile @relation(fields: [cvProfileId], references: [id], onDelete: Cascade)
+
+  countryCode String
+  cvText      String
+  coverLetter String
+
+  generatedAt DateTime @default(now())
+
+  @@index([jobId])
+  @@index([cvProfileId])
+  @@map("generated_documents")
+}
+
+model Application {
+  id          String   @id @default(cuid())
+  jobId       String   @unique
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status      String   @default("saved")
+  history     String   @default("[]")
+  notes       String   @default("")
+  salaryOffer String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@map("applications")
+}
+
+model ScrapeLog {
+  id            String    @id @default(cuid())
+  source        String
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  jobsFound     Int       @default(0)
+  jobsAfterDedup Int      @default(0)
+  error         String?
+
+  @@index([source, startedAt])
+  @@map("scrape_log")
+}
+
+model Settings {
+  id    String @id @default("singleton")
+  value String @default("{}")
+
+  @@map("settings")
+}
+
+model SponsorFeedback {
+  id          String   @id @default(cuid())
+  company     String
+  countryCode String
+  sponsors    Boolean
+  source      String   @default("user")
+  createdAt   DateTime @default(now())
+
+  @@unique([company, countryCode])
+  @@map("sponsor_feedback")
+}
+
+model KnownSponsor {
+  id          String   @id @default(cuid())
+  company     String
+  countryCode String
+  source      String   @default("builtin")
+  licenceNumber String?
+  createdAt   DateTime @default(now())
+
+  @@unique([company, countryCode])
+  @@index([countryCode])
+  @@index([company])
+  @@map("known_sponsors")
+}
