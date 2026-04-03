@@ -50,7 +50,7 @@ export function Shell({ children }: ShellProps) {
   const { data: status } = useQuery<ScraperStatus>({
     queryKey: ['scraper-status'],
     queryFn: () => apiGet('/scraper/status'),
-    refetchInterval: 3000,
+    refetchInterval: 10000,
   });
 
   return (

@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Param, Query } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaService } from '../database/prisma.service';
 import { ScrapeOrchestratorService } from './scrape-orchestrator.service';
 import { ScrapeSchedulerService } from './scrape-scheduler.service';
@@ -21,6 +21,7 @@ export class ScraperController {
   }
 
   @Post('run')
+  @UseGuards(ThrottlerGuard)
   @Throttle({ scraper: { ttl: 300000, limit: 3 } })
   async runAll() {
     const keys = this.keyStore.getKeys();
@@ -32,6 +33,7 @@ export class ScraperController {
   }
 
   @Post('run/:source')
+  @UseGuards(ThrottlerGuard)
   @Throttle({ scraper: { ttl: 300000, limit: 3 } })
   async runSource(@Param('source') source: JobSource) {
     const keys = this.keyStore.getKeys();

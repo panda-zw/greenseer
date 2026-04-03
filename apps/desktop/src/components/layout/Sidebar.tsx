@@ -21,7 +21,7 @@ export function Sidebar() {
   const { data: scraperStatus } = useQuery<{ running: boolean; paused: boolean }>({
     queryKey: ['scraper-status'],
     queryFn: () => apiGet('/scraper/status'),
-    refetchInterval: 5000,
+    refetchInterval: 10000,
   });
 
   const runSearch = useMutation({

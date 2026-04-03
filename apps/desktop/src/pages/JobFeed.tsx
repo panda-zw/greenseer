@@ -82,6 +82,7 @@ export function JobFeed() {
   const setSortByAndReset = (v: string) => { setSortBy(v); setPage(1); };
 
   const { data, isLoading } = useQuery<FeedResponse>({
+    placeholderData: (prev) => prev,
     queryKey: ['job-feed', statusFilter, countryFilter, sortBy, page],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -93,7 +94,7 @@ export function JobFeed() {
       params.set('limit', String(perPage));
       return apiGet<FeedResponse>(`/jobs/feed?${params}`);
     },
-    refetchInterval: 5000,
+    refetchInterval: statusFilter === 'all' ? 5000 : false,
   });
 
   const saveJob = useMutation({
