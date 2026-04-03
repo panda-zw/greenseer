@@ -22,7 +22,7 @@ export class CvService {
     const profiles = await this.prisma.cvProfile.findMany({
       orderBy: { updatedAt: 'desc' },
     });
-    return profiles.map(this.toDto);
+    return profiles.map((p) => this.toDto(p));
   }
 
   async getProfile(id: string): Promise<CvProfileDto> {

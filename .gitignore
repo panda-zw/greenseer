@@ -11,6 +11,8 @@ out/
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/binaries/greenseer-sidecar*
 apps/desktop/src-tauri/binaries/jobmatch-sidecar*
+apps/desktop/src-tauri/binaries/libquery_engine*
+apps/desktop/src-tauri/binaries/prisma/
 
 # Database
 *.db

@@ -1,6 +1,14 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as mammoth from 'mammoth';
-import * as sharp from 'sharp';
+
+// Lazy-load native modules so the app starts even if they're unavailable (e.g. in pkg binary)
+let _sharp: any = null;
+function getSharp() {
+  if (!_sharp) {
+    try { _sharp = require('sharp'); } catch { _sharp = null; }
+  }
+  return _sharp;
+}
 
 @Injectable()
 export class FileParserService {
@@ -37,28 +45,43 @@ export class FileParserService {
   private async parsePdf(buffer: Buffer): Promise<string> {
     // Step 1: Try text extraction
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const pdfParse = require('pdf-parse');
-      const data = await pdfParse(buffer);
-      const text = data.text?.trim();
+      let pdfParse: any;
+      try {
+        // pdf-parse v1 tries to load a test file on require() — catch that
+        pdfParse = require('pdf-parse');
+      } catch {
+        // In pkg binary, try dynamic import as fallback
+        pdfParse = (await import('pdf-parse' as any)).default;
+      }
 
-      // If we got meaningful text (more than a few chars per page), use it
-      if (text && text.length > 50) {
-        this.logger.log(`PDF text extraction: ${text.length} chars`);
-        return text;
+      if (pdfParse) {
+        const data = await pdfParse(buffer);
+        const text = data.text?.trim();
+
+        if (text && text.length > 50) {
+          this.logger.log(`PDF text extraction: ${text.length} chars`);
+          return text;
+        }
       }
     } catch (error: any) {
       this.logger.warn(`PDF text extraction failed: ${error.message}`);
     }
 
     // Step 2: Fallback to OCR — convert PDF pages to images via sharp
+    const sharpMod = getSharp();
+    if (!sharpMod) {
+      throw new BadRequestException(
+        'PDF has no selectable text and OCR is not available in this build. Please upload a PDF with selectable text, or a DOCX/TXT file.',
+      );
+    }
+
     this.logger.log('PDF has no selectable text, falling back to OCR...');
     try {
       return await this.ocrPdf(buffer);
     } catch (error: any) {
       this.logger.error(`PDF OCR failed: ${error.message}`);
       throw new BadRequestException(
-        'Failed to read PDF. Both text extraction and OCR failed.',
+        'Failed to read PDF. Both text extraction and OCR failed. Try a PDF with selectable text, or upload DOCX/TXT.',
       );
     }
   }
@@ -72,14 +95,14 @@ export class FileParserService {
 
     try {
       // Get page count by attempting to read metadata
-      const metadata = await (sharp as any)(buffer, { density: 200 }).metadata();
+      const metadata = await getSharp()(buffer, { density: 200 }).metadata();
       const pageCount = metadata.pages || 1;
 
       const worker = await createWorker('eng');
 
       for (let page = 0; page < Math.min(pageCount, 10); page++) {
         try {
-          const pngBuffer = await (sharp as any)(buffer, {
+          const pngBuffer = await getSharp()(buffer, {
             density: 250,
             page,
           })
@@ -101,7 +124,7 @@ export class FileParserService {
       this.logger.warn(`Sharp PDF conversion failed: ${sharpError.message}, trying single-page`);
 
       try {
-        const pngBuffer = await (sharp as any)(buffer, { density: 250 })
+        const pngBuffer = await getSharp()(buffer, { density: 250 })
           .png()
           .toBuffer();
 

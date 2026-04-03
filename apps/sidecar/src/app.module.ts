@@ -17,7 +17,7 @@ import { SponsorsModule } from './sponsors/sponsors.module';
   imports: [
     ThrottlerModule.forRoot({
       throttlers: [
-        { name: 'default', ttl: 60000, limit: 60 },    // 60 req/min general
+        { name: 'default', ttl: 60000, limit: 300 },   // 300 req/min general
         { name: 'scraper', ttl: 300000, limit: 3 },     // 3 scraper runs per 5 min
       ],
     }),

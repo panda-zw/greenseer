@@ -9,7 +9,7 @@
     "start:prod": "node dist/main.js",
     "build": "tsc -p tsconfig.json",
     "build:bundle": "node esbuild.config.mjs",
-    "build:binary": "pnpm build && pnpm build:bundle && pnpm exec pkg dist/bundle.cjs --targets node20-macos-arm64,node20-macos-x64,node20-win-x64 --output dist/greenseer-sidecar",
+    "build:binary": "pnpm build && pnpm build:bundle && pnpm exec pkg dist/bundle.cjs --targets node20-macos-arm64,node20-macos-x64,node20-win-x64 --output dist/greenseer-sidecar && node scripts/copy-prisma-engine.mjs",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "test": "jest",

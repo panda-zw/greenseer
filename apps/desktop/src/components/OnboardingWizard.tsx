@@ -127,22 +127,24 @@ export function OnboardingWizard({ onComplete }: Props) {
       errors.push('settings');
     }
 
-    // Save API keys — store in keychain AND push to sidecar directly
+    // Save API keys
     if (anthropicKey || adzunaAppId) {
       try {
-        // Store in OS keychain if running in Tauri
         if ('__TAURI_INTERNALS__' in window) {
+          // Store in OS keychain and push via Rust (which has the sidecar secret)
           const { invoke } = await import('@tauri-apps/api/core');
           if (anthropicKey) await invoke('store_credential', { service: 'anthropic_api_key', key: anthropicKey });
           if (adzunaAppId) await invoke('store_credential', { service: 'adzuna_app_id', key: adzunaAppId });
           if (adzunaKey) await invoke('store_credential', { service: 'adzuna_api_key', key: adzunaKey });
+          await invoke('push_keys_to_sidecar');
+        } else {
+          // Dev mode only — push directly (no sidecar secret required)
+          await apiPost('/internal/keys', {
+            anthropicKey: anthropicKey || undefined,
+            adzunaAppId: adzunaAppId || undefined,
+            adzunaKey: adzunaKey || undefined,
+          });
         }
-        // Always push to sidecar via HTTP
-        await apiPost('/internal/keys', {
-          anthropicKey: anthropicKey || undefined,
-          adzunaAppId: adzunaAppId || undefined,
-          adzunaKey: adzunaKey || undefined,
-        });
       } catch {
         errors.push('API keys');
       }

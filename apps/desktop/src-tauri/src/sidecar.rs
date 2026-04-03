@@ -45,6 +45,20 @@ pub fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
     // Get or generate a persistent encryption key for data at rest
     let encryption_key = get_or_create_encryption_key();
 
+    // Locate the Prisma query engine shipped as a resource
+    let resource_dir = app.path()
+        .resource_dir()
+        .unwrap_or_default();
+    // Resources are bundled under Contents/Resources/binaries/
+    let binaries_resource_dir = resource_dir.join("binaries");
+    let prisma_engine = find_prisma_engine(&binaries_resource_dir)
+        .or_else(|| find_prisma_engine(&resource_dir))
+        // Fallback: look next to the sidecar binary in Contents/MacOS/
+        .or_else(|| {
+            let macos_dir = resource_dir.parent().unwrap_or(&resource_dir).join("MacOS");
+            find_prisma_engine(&macos_dir)
+        });
+
     let mut sidecar_command = app
         .shell()
         .sidecar("greenseer-sidecar")
@@ -52,6 +66,17 @@ pub fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
         .env("DATABASE_URL", &db_url)
         .env("SIDECAR_PORT", "11434")
         .env("SIDECAR_SECRET", secret);
+
+    if let Some(ref engine_path) = prisma_engine {
+        sidecar_command = sidecar_command.env("PRISMA_QUERY_ENGINE_LIBRARY", engine_path.to_string_lossy().as_ref());
+        println!("[greenseer] Prisma engine: {}", engine_path.display());
+    }
+
+    // Point to bundled schema.prisma
+    let schema_path = binaries_resource_dir.join("prisma").join("schema.prisma");
+    if schema_path.exists() {
+        sidecar_command = sidecar_command.env("PRISMA_SCHEMA_PATH", schema_path.to_string_lossy().as_ref());
+    }
 
     if let Some(ref ek) = encryption_key {
         sidecar_command = sidecar_command.env("ENCRYPTION_KEY", ek);
@@ -192,4 +217,18 @@ fn get_or_create_encryption_key() -> Option<String> {
             None
         }
     }
+}
+
+/// Find the Prisma query engine .node file in the given directory.
+fn find_prisma_engine(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with("libquery_engine") && name_str.ends_with(".node") {
+                return Some(entry.path());
+            }
+        }
+    }
+    None
 }

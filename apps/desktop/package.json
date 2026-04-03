@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:sidecar": "cd ../sidecar && pnpm build && node esbuild.config.mjs && pnpm exec pkg dist/bundle.cjs --targets node20-macos-arm64 --output dist/greenseer-sidecar && node scripts/copy-prisma-engine.mjs && cd ../desktop && node scripts/install-sidecar.mjs",
+    "build:all": "pnpm build:sidecar && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src/",

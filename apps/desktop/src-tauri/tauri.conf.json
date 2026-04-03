@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm build:all",
     "frontendDist": "../dist"
   },
   "app": {
@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://api.adzuna.com https://api.anthropic.com; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:"
+      "csp": "default-src 'self' tauri: http://tauri.localhost; connect-src 'self' http://127.0.0.1:* http://localhost:* https://api.adzuna.com https://api.anthropic.com; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:"
     }
   },
   "bundle": {
@@ -39,6 +39,10 @@
     ],
     "externalBin": [
       "binaries/greenseer-sidecar"
+    ],
+    "resources": [
+      "binaries/libquery_engine*",
+      "binaries/prisma/"
     ]
   }
 }

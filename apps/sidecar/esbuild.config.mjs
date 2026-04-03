@@ -8,8 +8,6 @@ await esbuild.build({
   format: 'cjs',
   outfile: 'dist/bundle.cjs',
   external: [
-    '@prisma/client',
-    '.prisma/client',
     'fsevents',
     // Optional NestJS modules (loaded dynamically, not used)
     '@nestjs/microservices',
@@ -21,7 +19,7 @@ await esbuild.build({
     'chromium-bidi',
     'chromium-bidi/lib/cjs/bidiMapper/BidiMapper',
     'chromium-bidi/lib/cjs/cdp/CdpConnection',
-    // Native modules
+    // Native modules (loaded via dlopen at runtime)
     'sharp',
     'tesseract.js',
   ],

@@ -46,11 +46,21 @@ export function ApiKeysSettings() {
     checkKeys();
   }, []);
 
+  const pushKeys = async () => {
+    if (isTauri()) {
+      await tauriInvoke('push_keys_to_sidecar');
+    } else {
+      const { apiPost } = await import('@/lib/api');
+      await apiPost('/internal/keys', { anthropicKey, adzunaAppId, adzunaKey });
+    }
+  };
+
   const saveAnthropicKey = async () => {
     try {
-      try { await tauriInvoke('store_credential', { service: 'anthropic_api_key', key: anthropicKey }); } catch {}
-      const { apiPost } = await import('@/lib/api');
-      await apiPost('/internal/keys', { anthropicKey });
+      if (isTauri()) {
+        await tauriInvoke('store_credential', { service: 'anthropic_api_key', key: anthropicKey });
+      }
+      await pushKeys();
       setHasAnthropic(true);
       setAnthropicKey('');
       toast.success('Anthropic API key saved');
@@ -61,12 +71,11 @@ export function ApiKeysSettings() {
 
   const saveAdzunaKeys = async () => {
     try {
-      try {
+      if (isTauri()) {
         await tauriInvoke('store_credential', { service: 'adzuna_app_id', key: adzunaAppId });
         await tauriInvoke('store_credential', { service: 'adzuna_api_key', key: adzunaKey });
-      } catch {}
-      const { apiPost } = await import('@/lib/api');
-      await apiPost('/internal/keys', { adzunaAppId, adzunaKey });
+      }
+      await pushKeys();
       setHasAdzuna(true);
       setAdzunaAppId('');
       setAdzunaKey('');

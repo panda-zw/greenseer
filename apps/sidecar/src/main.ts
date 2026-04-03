@@ -35,11 +35,15 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   app.enableCors({
-    origin: [
-      'tauri://localhost',
-      'https://tauri.localhost',
-      'http://localhost:1420', // Vite dev server
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. same-origin, curl, sidecar-to-sidecar)
+      if (!origin) return callback(null, true);
+      // Allow Tauri webview origins (varies by platform)
+      if (origin.includes('tauri.localhost') || origin.startsWith('tauri://')) return callback(null, true);
+      // Allow Vite dev server
+      if (origin.startsWith('http://localhost:')) return callback(null, true);
+      callback(new Error('CORS not allowed'), false);
+    },
   });
 
   await app.listen(port, '127.0.0.1');
