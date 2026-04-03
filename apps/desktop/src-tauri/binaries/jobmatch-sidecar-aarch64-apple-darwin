@@ -1,2 +1,0 @@
-#!/bin/bash
-exec node "/Users/panashemapika/Development/job-match/apps/sidecar/dist/main.js" "$@"

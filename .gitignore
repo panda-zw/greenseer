@@ -10,6 +10,7 @@ out/
 # Tauri
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/binaries/greenseer-sidecar*
+apps/desktop/src-tauri/binaries/jobmatch-sidecar*
 
 # Database
 *.db
