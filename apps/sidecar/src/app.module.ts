@@ -11,6 +11,7 @@ import { CvModule } from './cv/cv.module';
 import { DocumentsModule } from './documents/documents.module';
 import { TrackerModule } from './tracker/tracker.module';
 import { SponsorsModule } from './sponsors/sponsors.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SponsorsModule } from './sponsors/sponsors.module';
     DocumentsModule,
     TrackerModule,
     SponsorsModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
 })

@@ -12,6 +12,8 @@ import { Generator } from '@/pages/Generator';
 import { Tracker } from '@/pages/Tracker';
 import { ActivityLog } from '@/pages/ActivityLog';
 import { Sponsors } from '@/pages/Sponsors';
+import { LinkedInOptimizer } from '@/pages/LinkedInOptimizer';
+import { Projects } from '@/pages/Projects';
 import { useTheme } from '@/hooks/useTheme';
 
 const queryClient = new QueryClient({
@@ -37,7 +39,9 @@ function AppContent() {
           <Route path="/" element={<Navigate to="/feed" replace />} />
           <Route path="/feed" element={<JobFeed />} />
           <Route path="/cv" element={<CvManager />} />
+          <Route path="/projects" element={<Projects />} />
           <Route path="/generator" element={<Generator />} />
+          <Route path="/linkedin" element={<LinkedInOptimizer />} />
           <Route path="/tracker" element={<Tracker />} />
           <Route path="/activity" element={<ActivityLog />} />
           <Route path="/sponsors" element={<Sponsors />} />

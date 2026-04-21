@@ -74,19 +74,60 @@ model JobMatch {
 }
 
 model CvProfile {
-  id        String   @id @default(cuid())
-  name      String
-  body      String
-  skills    String   @default("[]")
-  isDefault Boolean  @default(false)
-  versions  String   @default("[]")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  body       String
+  structured String?
+  skills     String   @default("[]")
+  isDefault  Boolean  @default(false)
+  versions   String   @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   matches   JobMatch[]
   documents GeneratedDocument[]
 
   @@map("cv_profiles")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  techStack   String   @default("[]")  // JSON string array
+  url         String?
+  startDate   String?
+  endDate     String?
+  highlights  String   @default("[]")  // JSON string array of key achievements/bullets
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model GenerationHistory {
+  id          String   @id @default(cuid())
+  jobTitle    String
+  company     String   @default("")
+  countryCode String
+  cvText      String
+  coverLetter String
+  jobDescription String @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("generation_history")
+}
+
+model LinkedInAnalysisHistory {
+  id          String   @id @default(cuid())
+  score       Int
+  inputData   String   @default("{}")  // JSON: headline, about, etc.
+  resultData  String   @default("{}")  // JSON: full LinkedInAnalysis
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("linkedin_analysis_history")
 }
 
 model GeneratedDocument {

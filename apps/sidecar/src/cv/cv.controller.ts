@@ -1,10 +1,23 @@
 import {
+  BadRequestException,
   Body, Controller, Delete, Get, Param, Post, Put,
   UploadedFile, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CvService } from './cv.service';
 import { FileParserService } from './file-parser.service';
+import type { StructuredCV } from '@greenseer/shared';
+
+const UPLOAD_LIMITS = { fileSize: 10 * 1024 * 1024 };
+// Use extension whitelist — mimetypes vary across OSes (e.g. Safari sends
+// `application/x-pdf` or empty string for some PDFs). Validating by extension
+// in the filter lets us return a clean 400 from the controller with a useful
+// message rather than silently dropping the file.
+const ALLOWED_EXTS = ['pdf', 'docx', 'txt', 'png', 'jpg', 'jpeg', 'webp'];
+function extFilter(_req: any, file: Express.Multer.File, cb: (err: Error | null, acceptFile: boolean) => void) {
+  const ext = (file.originalname.split('.').pop() || '').toLowerCase();
+  cb(null, ALLOWED_EXTS.includes(ext));
+}
 
 @Controller('cv')
 export class CvController {
@@ -29,23 +42,16 @@ export class CvController {
   }
 
   @Post('profiles/upload')
-  @UseInterceptors(FileInterceptor('file', {
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-      const allowed = [
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain',
-        'image/png',
-        'image/jpeg',
-      ];
-      cb(null, allowed.includes(file.mimetype));
-    },
-  }))
+  @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS, fileFilter: extFilter }))
   async uploadProfile(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: { name?: string },
   ) {
+    if (!file) {
+      throw new BadRequestException(
+        `No file received. Supported formats: ${ALLOWED_EXTS.join(', ')}. Max 10 MB.`,
+      );
+    }
     const text = await this.fileParser.parseFile(
       file.buffer,
       file.mimetype,
@@ -57,20 +63,13 @@ export class CvController {
   }
 
   @Post('parse-file')
-  @UseInterceptors(FileInterceptor('file', {
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-      const allowed = [
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain',
-        'image/png',
-        'image/jpeg',
-      ];
-      cb(null, allowed.includes(file.mimetype));
-    },
-  }))
+  @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS, fileFilter: extFilter }))
   async parseFile(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException(
+        `No file received. Supported formats: ${ALLOWED_EXTS.join(', ')}. Max 10 MB.`,
+      );
+    }
     const text = await this.fileParser.parseFile(
       file.buffer,
       file.mimetype,
@@ -82,9 +81,14 @@ export class CvController {
   @Put('profiles/:id')
   updateProfile(
     @Param('id') id: string,
-    @Body() data: { name?: string; body?: string },
+    @Body() data: { name?: string; body?: string; structured?: StructuredCV | null },
   ) {
     return this.cvService.updateProfile(id, data);
+  }
+
+  @Post('profiles/:id/parse-structured')
+  parseStructured(@Param('id') id: string) {
+    return this.cvService.parseStructured(id);
   }
 
   @Delete('profiles/:id')

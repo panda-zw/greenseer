@@ -76,6 +76,8 @@ export class PrismaService
     await addColumn('jobs', 'postedAt', 'DATETIME');
     // sponsorTier added to job_analysis
     await addColumn('job_analysis', 'sponsorTier', 'TEXT', "'unknown'");
+    // structured cache added to cv_profiles (nullable — derived from body)
+    await addColumn('cv_profiles', 'structured', 'TEXT');
 
     // Create tables that may not exist
     const createIfNotExists = async (sql: string) => {
@@ -113,6 +115,53 @@ export class PrismaService
     );
     await createIfNotExists(
       `CREATE INDEX IF NOT EXISTS "sponsor_feedback_company_idx" ON "sponsor_feedback"("company")`,
+    );
+
+    // Projects bank — standalone project repository for CV generation
+    await createIfNotExists(`
+      CREATE TABLE IF NOT EXISTS "projects" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "name" TEXT NOT NULL,
+        "description" TEXT NOT NULL,
+        "techStack" TEXT NOT NULL DEFAULT '[]',
+        "url" TEXT,
+        "startDate" TEXT,
+        "endDate" TEXT,
+        "highlights" TEXT NOT NULL DEFAULT '[]',
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" DATETIME NOT NULL
+      )
+    `);
+
+    // Generation history — stores every CV/cover letter generation from the Generator page
+    await createIfNotExists(`
+      CREATE TABLE IF NOT EXISTS "generation_history" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "jobTitle" TEXT NOT NULL,
+        "company" TEXT NOT NULL DEFAULT '',
+        "countryCode" TEXT NOT NULL,
+        "cvText" TEXT NOT NULL,
+        "coverLetter" TEXT NOT NULL,
+        "jobDescription" TEXT NOT NULL DEFAULT '',
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await createIfNotExists(
+      `CREATE INDEX IF NOT EXISTS "generation_history_createdAt_idx" ON "generation_history"("createdAt")`,
+    );
+
+    // LinkedIn analysis history
+    await createIfNotExists(`
+      CREATE TABLE IF NOT EXISTS "linkedin_analysis_history" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "score" INTEGER NOT NULL,
+        "inputData" TEXT NOT NULL DEFAULT '{}',
+        "resultData" TEXT NOT NULL DEFAULT '{}',
+        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await createIfNotExists(
+      `CREATE INDEX IF NOT EXISTS "linkedin_analysis_history_createdAt_idx" ON "linkedin_analysis_history"("createdAt")`,
     );
   }
 
@@ -173,11 +222,44 @@ CREATE TABLE "cv_profiles" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
     "body" TEXT NOT NULL,
+    "structured" TEXT,
     "skills" TEXT NOT NULL DEFAULT '[]',
     "isDefault" BOOLEAN NOT NULL DEFAULT false,
     "versions" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
+);
+
+CREATE TABLE "projects" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "techStack" TEXT NOT NULL DEFAULT '[]',
+    "url" TEXT,
+    "startDate" TEXT,
+    "endDate" TEXT,
+    "highlights" TEXT NOT NULL DEFAULT '[]',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+CREATE TABLE "generation_history" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "jobTitle" TEXT NOT NULL,
+    "company" TEXT NOT NULL DEFAULT '',
+    "countryCode" TEXT NOT NULL,
+    "cvText" TEXT NOT NULL,
+    "coverLetter" TEXT NOT NULL,
+    "jobDescription" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE "linkedin_analysis_history" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "score" INTEGER NOT NULL,
+    "inputData" TEXT NOT NULL DEFAULT '{}',
+    "resultData" TEXT NOT NULL DEFAULT '{}',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE "generated_documents" (

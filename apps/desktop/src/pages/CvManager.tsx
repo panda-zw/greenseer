@@ -25,10 +25,11 @@ import {
   RotateCcw,
   Loader2,
   Upload,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { CvProfileDto } from '@greenseer/shared';
-import { textToStructuredCv, structuredCvToText } from '@greenseer/shared';
+import type { CvProfileDto, StructuredCV } from '@greenseer/shared';
+import { textToStructuredCv } from '@greenseer/shared';
 import { StructuredCvEditor } from '@/components/StructuredCvEditor';
 
 async function apiDelete(path: string) {
@@ -37,6 +38,24 @@ async function apiDelete(path: string) {
   return res.json();
 }
 
+/**
+ * CvManager architecture:
+ *
+ * - `body` (raw text) is the canonical source of truth on the server.
+ * - `structured` is a derived, persisted cache of the parsed form.
+ *
+ * Data flow:
+ * - Raw mode edits `editBody`. Saving sends { body: editBody } → server saves
+ *   verbatim and invalidates the server-side structured cache.
+ * - Structured mode edits `structuredCv`. Saving sends { structured } → server
+ *   persists it. If the server's `body` was empty, it backfills body from the
+ *   structured data.
+ * - When the user opens structured mode and `structuredCv` is null (fresh load,
+ *   or just invalidated by a raw save), we call the AI parse endpoint to fill
+ *   it in. A heuristic is used as instant local fallback while AI runs.
+ * - Raw and structured never cross-contaminate on save: whichever mode the
+ *   user saves from is the only field sent.
+ */
 export function CvManager() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -44,8 +63,8 @@ export function CvManager() {
   const [editName, setEditName] = useState('');
   const [newSkill, setNewSkill] = useState('');
   const [showNewDialog, setShowNewDialog] = useState(false);
-  const [editorMode, setEditorMode] = useState<'structured' | 'raw'>('structured');
-  const [structuredCv, setStructuredCv] = useState<ReturnType<typeof textToStructuredCv> | null>(null);
+  const [editorMode, setEditorMode] = useState<'structured' | 'raw'>('raw');
+  const [structuredCv, setStructuredCv] = useState<StructuredCV | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
@@ -55,22 +74,30 @@ export function CvManager() {
     queryFn: () => apiGet('/cv/profiles'),
   });
 
-  // Auto-select first profile
+  const selected = profiles?.find((p) => p.id === selectedId);
+
+  // Load local editor state from the selected profile. Uses selectedId as the
+  // dependency so this fires on profile switch and on every refetch of the
+  // selected profile (so that post-save server state gets pulled back in).
+  useEffect(() => {
+    if (!selected) return;
+    setEditBody(selected.body);
+    setStructuredCv(selected.structured);
+    setEditName(selected.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, selected?.updatedAt]);
+
+  // Auto-select first profile on initial load.
   useEffect(() => {
     if (!selectedId && profiles && profiles.length > 0) {
       setSelectedId(profiles[0].id);
-      setEditBody(profiles[0].body);
-      setEditName(profiles[0].name);
     }
   }, [profiles, selectedId]);
 
-  const selected = profiles?.find((p) => p.id === selectedId);
-
   const selectProfile = (p: CvProfileDto) => {
     setSelectedId(p.id);
-    setEditBody(p.body);
-    setStructuredCv(textToStructuredCv(p.body));
-    setEditName(p.name);
+    // Reset mode to raw on profile switch — the user can toggle back if desired.
+    setEditorMode('raw');
   };
 
   const createProfile = useMutation({
@@ -78,22 +105,53 @@ export function CvManager() {
       apiPost<CvProfileDto>('/cv/profiles', data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['cv-profiles'] });
-      selectProfile(data);
+      setSelectedId(data.id);
+      setEditorMode('raw');
       setShowNewDialog(false);
       setNewProfileName('');
       toast.success('Profile created');
     },
+    onError: (err: any) => toast.error(err?.message || 'Failed to create profile'),
   });
 
   const updateProfile = useMutation({
     mutationFn: () => {
-      // Sync structured CV to text before saving
-      const body = structuredCv ? structuredCvToText(structuredCv) : editBody;
-      return apiPut<CvProfileDto>(`/cv/profiles/${selectedId}`, { name: editName, body });
+      if (!selectedId) throw new Error('No profile selected');
+      // Send ONLY the field matching the current edit mode. Never both.
+      // This is what guarantees raw-text saves are verbatim.
+      const payload: { name: string; body?: string; structured?: StructuredCV | null } = {
+        name: editName,
+      };
+      if (editorMode === 'raw') {
+        payload.body = editBody;
+      } else {
+        payload.structured = structuredCv;
+      }
+      return apiPut<CvProfileDto>(`/cv/profiles/${selectedId}`, payload);
     },
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['cv-profiles'] });
-      toast.success('Saved — skills updated');
+      // Sync local state from the authoritative server response.
+      setEditBody(updated.body);
+      setStructuredCv(updated.structured);
+      toast.success('Saved');
+    },
+    onError: (err: any) => toast.error(err?.message || 'Failed to save'),
+  });
+
+  const parseStructured = useMutation({
+    mutationFn: () => apiPost<CvProfileDto>(`/cv/profiles/${selectedId}/parse-structured`),
+    onSuccess: (updated) => {
+      setStructuredCv(updated.structured);
+      queryClient.invalidateQueries({ queryKey: ['cv-profiles'] });
+      toast.success('Parsed from raw text');
+    },
+    onError: (err: any) => {
+      // Even on AI failure the service falls back to heuristic, so an error
+      // here is unusual. Surface it but also populate a local heuristic parse
+      // so the user isn't stuck.
+      toast.error(err?.message || 'AI parse failed — using heuristic parser');
+      setStructuredCv(textToStructuredCv(editBody));
     },
   });
 
@@ -131,10 +189,23 @@ export function CvManager() {
         method: 'POST',
         body: formData,
       });
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) {
+        // Surface the server's actual error message so the user can diagnose.
+        let msg = `Upload failed (${res.status})`;
+        try {
+          const body = await res.json();
+          if (body?.message) msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
       const data = await res.json();
+      // Replace the raw body with the extracted text and switch to Raw mode so
+      // the user can see exactly what was imported. Clear any stale structured
+      // state — it will be re-derived the next time structured view opens.
       setEditBody(data.text);
-      toast.success(`Extracted text from ${file.name}`);
+      setStructuredCv(null);
+      setEditorMode('raw');
+      toast.success(`Extracted ${data.text.length} chars from ${file.name}. Click Save to persist.`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to parse file');
     } finally {
@@ -153,6 +224,30 @@ export function CvManager() {
   const removeSkill = (skill: string) => {
     if (!selected) return;
     updateSkills.mutate(selected.skills.filter((s) => s !== skill));
+  };
+
+  // Switch to structured mode. If we have no cached structured data, trigger
+  // an AI parse (with instant heuristic fallback so the editor is usable
+  // immediately).
+  const switchToStructured = () => {
+    setEditorMode('structured');
+    if (!structuredCv) {
+      if (editBody.trim()) {
+        // Optimistic instant view from heuristic parser.
+        setStructuredCv(textToStructuredCv(editBody));
+        // Kick off AI parse in the background for a more accurate result.
+        parseStructured.mutate();
+      } else {
+        // Empty CV — give the user an empty skeleton to fill in.
+        setStructuredCv({
+          summary: '',
+          experience: [],
+          education: [],
+          projects: [],
+          certifications: [],
+        });
+      }
+    }
   };
 
   // Completeness indicator
@@ -254,7 +349,7 @@ export function CvManager() {
               ) : (
                 <Save className="h-3 w-3 mr-1" />
               )}
-              Save
+              Save {editorMode === 'raw' ? 'Raw' : 'Structured'}
             </Button>
             {!selected.isDefault && (
               <Button variant="outline" size="sm" className="h-8 text-[12px]" onClick={() => setDefault.mutate(selected.id)}>
@@ -262,7 +357,7 @@ export function CvManager() {
                 Set Default
               </Button>
             )}
-            <input ref={fileInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.png,.jpg,.jpeg" className="hidden" onChange={handleFileUpload} />
+            <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp" className="hidden" onChange={handleFileUpload} />
             <Button variant="outline" size="sm" className="h-8 text-[12px]" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
               {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
               Upload
@@ -278,36 +373,59 @@ export function CvManager() {
           {/* Editor mode toggle */}
           <div className="flex-shrink-0 flex items-center gap-1 px-4 py-1.5 border-b border-border">
             <button
-              onClick={() => {
-                // Switching to structured: parse current text
-                setStructuredCv(textToStructuredCv(editBody));
-                setEditorMode('structured');
-              }}
+              onClick={switchToStructured}
               className={`text-[12px] px-2.5 py-1 rounded transition-colors ${editorMode === 'structured' ? 'bg-secondary text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}
             >
               Structured
             </button>
             <button
-              onClick={() => {
-                // Switching to raw: serialize structured back to text
-                if (structuredCv) setEditBody(structuredCvToText(structuredCv));
-                setEditorMode('raw');
-              }}
+              onClick={() => setEditorMode('raw')}
               className={`text-[12px] px-2.5 py-1 rounded transition-colors ${editorMode === 'raw' ? 'bg-secondary text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}
             >
               Raw Text
             </button>
+            {editorMode === 'structured' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 ml-2 text-[11px] text-muted-foreground"
+                onClick={() => parseStructured.mutate()}
+                disabled={parseStructured.isPending || !editBody.trim()}
+                title="Re-parse the structured view from the current raw text using AI"
+              >
+                {parseStructured.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                ) : (
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                )}
+                Re-parse from Raw
+              </Button>
+            )}
+            <span className="ml-auto text-[11px] text-muted-foreground">
+              {editorMode === 'raw'
+                ? 'Raw text saves verbatim — exactly what you type.'
+                : 'Structured edits save independently; raw text is untouched.'}
+            </span>
           </div>
 
           <div className="flex-1 flex overflow-hidden">
             {/* Editor */}
             {editorMode === 'structured' ? (
               <div className="flex-1 overflow-hidden">
-                <StructuredCvEditor
-                  cv={structuredCv || textToStructuredCv(editBody)}
-                  onChange={(cv) => setStructuredCv(cv)}
-                  profileId={selected.id}
-                />
+                {structuredCv ? (
+                  <StructuredCvEditor
+                    cv={structuredCv}
+                    onChange={(cv) => setStructuredCv(cv)}
+                    profileId={selected.id}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span className="text-[12px]">Parsing raw text…</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex-1 p-4">
