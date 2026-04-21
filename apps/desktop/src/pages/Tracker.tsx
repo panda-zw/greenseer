@@ -28,11 +28,10 @@ import {
   Zap,
   FileText,
   Loader2,
-  Copy,
-  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { GeneratedDocumentDto } from '@greenseer/shared';
+import { DocumentPreview } from '@/components/DocumentPreview';
 import {
   APPLICATION_STATUSES,
   type ApplicationDto,
@@ -422,6 +421,10 @@ function DetailPanel({
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState(app.notes);
   const [salary, setSalary] = useState(app.salaryOffer || '');
+  // Holds the document currently shown in the preview modal. Seeded from
+  // `latestDoc` when the user clicks Preview, then kept in sync with any
+  // refinements so the modal shows fresh text without a round-trip refetch.
+  const [previewDoc, setPreviewDoc] = useState<GeneratedDocumentDto | null>(null);
 
   const { data: documents } = useQuery<GeneratedDocumentDto[]>({
     queryKey: ['tracker-docs', app.jobId],
@@ -455,21 +458,6 @@ function DetailPanel({
   });
 
   const latestDoc = documents?.[0];
-
-  const copyText = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied`);
-  };
-
-  const downloadText = (text: string, filename: string) => {
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   return (
     <div className="w-96 border-l border-border flex flex-col bg-card overflow-hidden">
@@ -527,35 +515,31 @@ function DetailPanel({
             <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Documents</Label>
             {latestDoc ? (
               <div className="mt-1.5 space-y-2">
-                <div className="rounded-lg bg-muted/50 p-2.5">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-medium text-foreground">Generated CV</span>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => copyText(latestDoc.cvText, 'CV')}>
-                        <Copy className="h-2.5 w-2.5 mr-0.5" /> Copy
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => downloadText(latestDoc.cvText, `CV-${app.job?.company || 'job'}.txt`)}>
-                        <Download className="h-2.5 w-2.5 mr-0.5" /> Save
-                      </Button>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[12px] font-medium text-foreground">CV & Cover Letter ready</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Generated {new Date(latestDoc.generatedAt).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-2">{latestDoc.cvText.slice(0, 150)}...</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-2.5">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-medium text-foreground">Cover Letter</span>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => copyText(latestDoc.coverLetter, 'Cover letter')}>
-                        <Copy className="h-2.5 w-2.5 mr-0.5" /> Copy
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => downloadText(latestDoc.coverLetter, `CoverLetter-${app.job?.company || 'job'}.txt`)}>
-                        <Download className="h-2.5 w-2.5 mr-0.5" /> Save
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-2">{latestDoc.coverLetter.slice(0, 150)}...</p>
-                </div>
-                <Button variant="outline" size="sm" className="h-7 text-[11px] w-full" onClick={() => generateDocs.mutate()} disabled={generateDocs.isPending}>
+                <Button
+                  size="sm"
+                  className="h-8 text-[12px] w-full"
+                  onClick={() => setPreviewDoc(latestDoc)}
+                >
+                  <FileText className="h-3 w-3 mr-1.5" />
+                  Preview, Edit & Download
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[11px] w-full"
+                  onClick={() => generateDocs.mutate()}
+                  disabled={generateDocs.isPending}
+                >
                   {generateDocs.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileText className="h-3 w-3 mr-1" />}
                   Regenerate
                 </Button>
@@ -588,6 +572,20 @@ function DetailPanel({
           </div>
         </div>
       </ScrollArea>
+      {previewDoc && (
+        <DocumentPreview
+          document={previewDoc}
+          company={app.job?.company || ''}
+          onClose={() => setPreviewDoc(null)}
+          onUpdated={(updated) => {
+            // Refinements save server-side (documentId is a real DB id, not
+            // 'manual'). Sync the modal to the updated text and invalidate
+            // the doc list so the drawer sees the latest on next open.
+            setPreviewDoc(updated);
+            queryClient.invalidateQueries({ queryKey: ['tracker-docs', app.jobId] });
+          }}
+        />
+      )}
     </div>
   );
 }

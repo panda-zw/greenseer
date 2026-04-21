@@ -99,6 +99,12 @@ export function DocumentPreview({
         documentId: doc.id,
         type: activeTab === 'cv' ? 'cv' : 'coverLetter',
         instruction: refineInput,
+        // Manual (non-persisted) docs generated from the Generator page need
+        // to send their current text along — the server has no DB row for them.
+        ...(doc.id === 'manual' && {
+          currentCvText: doc.cvText,
+          currentCoverLetter: doc.coverLetter,
+        }),
       }),
     onSuccess: (result) => {
       setHistory([...history, refineInput]);
@@ -107,7 +113,7 @@ export function DocumentPreview({
       toast.success('Document refined');
       queryClient.invalidateQueries({ queryKey: ['documents'] });
     },
-    onError: () => toast.error('Refinement failed'),
+    onError: (err: any) => toast.error(err?.message || 'Refinement failed'),
   });
 
   const copyToClipboard = () => {
@@ -126,57 +132,52 @@ export function DocumentPreview({
     setDownloading(null);
   };
 
-  const downloadDocx = async () => {
-    setDownloading('docx');
+  /**
+   * Stateless export via POST /documents/export — works for both stored
+   * (job-linked) and manual (Generator-page) documents, since we ship the
+   * current in-memory text directly rather than asking the server to load
+   * by id. This also means refinements made in this modal are persisted
+   * into the exported file, which the old GET-by-id flow missed.
+   */
+  const downloadFile = async (format: 'pdf' | 'docx') => {
+    setDownloading(format);
     try {
-      const type = activeTab === 'cv' ? 'cv' : 'cover';
-      const res = await fetch(sidecarUrl(`/documents/${doc.id}/download/${type}`));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch(sidecarUrl('/documents/export'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: currentText,
+          format,
+          type: activeTab === 'cv' ? 'cv' : 'cover-letter',
+          // Pass the selected preview template so the downloaded file
+          // visually matches what the user saw on screen.
+          template,
+          filename: `${activeTab === 'cv' ? 'CV' : 'Cover_Letter'}_${company || 'Document'}.${format}`,
+        }),
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body?.message) msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
       const blob = await res.blob();
       const arrayBuf = await blob.arrayBuffer();
-      await saveFileBytes(new Uint8Array(arrayBuf), `${activeTab === 'cv' ? 'CV' : 'Cover_Letter'}_${company}.docx`);
-      toast.success('DOCX saved');
-    } catch (err) {
-      toast.error('DOCX save failed');
+      await saveFileBytes(
+        new Uint8Array(arrayBuf),
+        `${activeTab === 'cv' ? 'CV' : 'Cover_Letter'}_${company || 'Document'}.${format}`,
+      );
+      toast.success(`${format.toUpperCase()} saved`);
+    } catch (err: any) {
+      toast.error(err?.message || `${format.toUpperCase()} save failed`);
     }
     setDownloading(null);
   };
 
-  const downloadPdf = async () => {
-    setDownloading('pdf');
-    // For PDF, we use the sidecar's DOCX endpoint as a base
-    // and tell the user to use their system's print-to-PDF
-    toast.info('Opening print dialog — select "Save as PDF" to download');
-    try {
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!iframeDoc) throw new Error('Cannot create print frame');
-      iframeDoc.write(`<!DOCTYPE html><html><head>
-        <title>${activeTab === 'cv' ? 'CV' : 'Cover Letter'} - ${company}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Calibri, 'Segoe UI', sans-serif; font-size: 11pt; line-height: 1.5; color: #1a1a1a; max-width: 680px; margin: 0 auto; padding: 20px; }
-          .name { font-size: 18pt; font-weight: bold; margin-bottom: 2px; }
-          .heading { font-size: 9pt; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 2px; margin-top: 14px; margin-bottom: 6px; }
-          .subtitle { font-weight: 600; margin-top: 6px; }
-          .bullet { margin-left: 14px; position: relative; margin-bottom: 2px; }
-          .bullet::before { content: "•"; position: absolute; left: -10px; }
-          .line { margin-bottom: 2px; }
-          @page { margin: 1.5cm; }
-        </style>
-      </head><body>${formatForPrint(currentText, activeTab === 'cv')}</body></html>`);
-      iframeDoc.close();
-      setTimeout(() => {
-        iframe.contentWindow?.print();
-        setTimeout(() => document.body.removeChild(iframe), 1000);
-      }, 300);
-    } catch {
-      toast.error('PDF generation failed');
-    }
-    setDownloading(null);
-  };
+  const downloadDocx = () => downloadFile('docx');
+  const downloadPdf = () => downloadFile('pdf');
 
   // Template styles — each genuinely different layout
   const styles = {
@@ -403,15 +404,3 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function formatForPrint(text: string, isCv: boolean): string {
-  return text.split('\n').map((line, i) => {
-    const t = line.trim();
-    if (!t) return '<br/>';
-    const isH = t === t.toUpperCase() && t.length > 2 && t.length < 60 && /[A-Z]/.test(t);
-    if (i === 0 && isCv) return `<div class="name">${t}</div>`;
-    if (isH) return `<div class="heading">${t}</div>`;
-    if (t.startsWith('- ') || t.startsWith('• ')) return `<div class="bullet">${t.replace(/^[-•]\s*/, '')}</div>`;
-    if (t.includes('—') && t.length < 100) return `<div class="subtitle">${t}</div>`;
-    return `<div class="line">${t}</div>`;
-  }).join('');
-}
