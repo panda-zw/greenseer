@@ -262,9 +262,27 @@ Same bullet style as experience. Prioritise projects whose domain or tech stack 
 ────────────────────────────────────────────────────────────────────────
 OUTPUT RULES
 ────────────────────────────────────────────────────────────────────────
-- Plain text only. No markdown, no tables, no columns, no graphics, no box characters.
-- Section headings: ALL CAPS on their own line.
-- Experience entries: "Job Title, Company Name (Month Year - Month Year)" on its own line, then bullets starting with "- ".
+- Plain text ONLY. No markdown whatsoever. This means:
+    * No asterisks for bold (**text** is forbidden) — asterisks will render
+      literally in the exported PDF/DOCX
+    * No underscores for bold or italic (__text__, _text_ forbidden)
+    * No backticks for code (\`text\` forbidden)
+    * No "#" heading prefixes (### forbidden)
+    * No tables, columns, graphics, box characters
+  Section emphasis comes from ALL-CAPS section names and line structure,
+  NOT from markdown markers. The downstream renderer detects headings and
+  role-titles automatically — you don't need to mark them.
+- Section headings: ALL CAPS on their own line (e.g. "PROFESSIONAL EXPERIENCE").
+- Experience entries — EVERY role MUST use this exact format, consistently,
+  for all entries (not just the first two):
+    Line 1: "Job Title, Company Name (Month Year - Month Year)"
+    Lines 2+: bullets starting with "- "
+  Do NOT split the role into multiple lines (don't put the date on its own
+  line, don't put company on its own line). The parenthesised date range is
+  what makes the renderer bold the role header, so it MUST be present on
+  the same line as the job title.
+- Project entries: "Project Name (Year - Year)" on its own line, then
+  bullets. Same rule — the date range in parens enables bold rendering.
 - No visa, sponsorship, or work-authorisation notes.
 - No separator lines like "---" or "___".
 - Do NOT use em-dashes (—) or en-dashes (–). Use commas, semicolons, or " - ".
@@ -302,7 +320,9 @@ Rules:
 - Professional but not stiff
 - Do NOT use em-dashes (—). Use commas or semicolons instead
 - Use standard hyphens (-) only
-- Output plain text only`;
+- Output plain text ONLY — no markdown. No asterisks for bold (**text**),
+  no underscores (__text__, _text_), no backticks, no heading prefixes.
+  These will render as literal characters in the exported PDF/DOCX.`;
 
 @Injectable()
 export class DocumentGeneratorService {
@@ -459,7 +479,15 @@ export class DocumentGeneratorService {
 
   async refineCvText(cvText: string, instruction: string): Promise<{ text: string }> {
     const result = await this.claude.promptJson<{ text: string }>(
-      `You are an expert career writer helping a software engineer refine their CV. Apply the user's instruction. Preserve the section structure (headings in ALL CAPS). Keep the CV readable as prose — bullets should sound like something the candidate would say about their own work in a conversation, not keyword lists. Any technology named in a bullet must be load-bearing for that story. Never invent anything the source doesn't support. Return JSON: { "text": "the complete edited CV text" }`,
+      `You are an expert career writer helping a software engineer refine their CV. Apply the user's instruction. Preserve the section structure (headings in ALL CAPS). Keep the CV readable as prose — bullets should sound like something the candidate would say about their own work in a conversation, not keyword lists. Any technology named in a bullet must be load-bearing for that story. Never invent anything the source doesn't support.
+
+OUTPUT RULES — plain text ONLY:
+- No markdown: do NOT use **text** for bold, __text__, *text*, _text_, backticks, or # headings. These render as literal characters in the exported file.
+- Section emphasis comes from ALL-CAPS section names and role-header line structure, NOT from markdown markers.
+- Every role header MUST stay on a single line in the exact format: "Job Title, Company Name (Month Year - Month Year)" — the parenthesised date range is what makes it render as a bold subtitle.
+- Keep the existing line structure: section headings in ALL CAPS, role headers on single lines with parens, bullets starting with "- ".
+
+Return JSON: { "text": "the complete edited CV text" }`,
       `Current CV:\n\n${cvText}\n\nInstruction: ${instruction}\n\nReturn the complete edited CV as JSON.`,
     );
     return { text: result.text };
@@ -507,7 +535,15 @@ export class DocumentGeneratorService {
     const currentText = type === 'cv' ? currentCvText : currentCoverLetter;
 
     const result = await this.claude.promptJson<{ text: string }>(
-      `You are an expert career writer refining a CV or cover letter. Apply the user's instruction. Keep the document readable as prose — bullets/sentences should sound like something the candidate would say about their own work, not keyword lists. Any technology named must be load-bearing. Never invent anything the source doesn't support. Return JSON: { "text": "the refined full document text" }`,
+      `You are an expert career writer refining a CV or cover letter. Apply the user's instruction. Keep the document readable as prose — bullets/sentences should sound like something the candidate would say about their own work, not keyword lists. Any technology named must be load-bearing. Never invent anything the source doesn't support.
+
+OUTPUT RULES — plain text ONLY:
+- No markdown: do NOT use **text** for bold, __text__, *text*, _text_, backticks, or # headings. They render literally in the exported file.
+- Section emphasis comes from ALL-CAPS headings and role-header line structure, NOT from markdown markers.
+- For CVs, every role header must be a single line ending with "(Month Year - Month Year)" — that's what triggers the bold subtitle renderer.
+- Preserve existing line structure (section headings in ALL CAPS, bullets starting with "- ").
+
+Return JSON: { "text": "the refined full document text" }`,
       `Current ${type === 'cv' ? 'CV' : 'cover letter'}:\n\n${currentText}\n\nUser instruction: ${instruction}\n\nApply the instruction and return the complete refined document as JSON.`,
       // Refinements can be long (full CV regens) — give them room.
       { model: 'claude-sonnet-4-5', maxTokens: 8192 },

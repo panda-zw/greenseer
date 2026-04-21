@@ -9,6 +9,7 @@ import {
   BorderStyle,
   ShadingType,
 } from 'docx';
+import { classifyLine, stripMarkdown, collectContactBlock } from './text-rendering';
 
 export type ExportTemplate = 'clean' | 'modern' | 'compact';
 
@@ -89,18 +90,6 @@ export class DocxExportService {
     const lines = text.split('\n');
     const paragraphs: Paragraph[] = [];
 
-    // Classifiers — MUST stay in sync with `DocumentPreview.tsx` and
-    // `PdfExportService`. See those files for rationale.
-    const isAllCapsHeading = (s: string) =>
-      s === s.toUpperCase() && s.length > 2 && s.length < 60 && /[A-Z]/.test(s);
-    const isRoleHeader = (s: string) =>
-      !isAllCapsHeading(s) &&
-      ((s.includes(',') && /\d{4}/.test(s)) || (s.length < 80 && s.endsWith(')')));
-    const isTrailingColonSubHeading = (s: string) =>
-      !isAllCapsHeading(s) && s.endsWith(':') && s.length < 80;
-    const isBulletLine = (s: string) =>
-      s.startsWith('- ') || s.startsWith('• ') || s.startsWith('● ');
-
     // Body text run factory — defaults to the template's body size/colour.
     const bodyRun = (content: string) =>
       new TextRun({
@@ -113,13 +102,13 @@ export class DocxExportService {
     let i = 0;
     while (i < lines.length && !lines[i].trim()) i++;
 
-    // Name
+    // Name + contact block
     if (i < lines.length && type === 'cv') {
       paragraphs.push(
         new Paragraph({
           children: [
             new TextRun({
-              text: lines[i].trim(),
+              text: stripMarkdown(lines[i].trim()),
               bold: true,
               size: style.nameSizeHalfPt,
               font: 'Calibri',
@@ -132,27 +121,17 @@ export class DocxExportService {
       );
       i++;
 
-      // Contact block: collect next ≤5 non-empty, non-heading lines and
-      // render as a single pipe-joined muted-coloured line.
-      const contactLines: string[] = [];
-      let consumed = 0;
-      while (i < lines.length && consumed < 5) {
-        const ln = lines[i].trim();
-        if (!ln) { i++; break; }
-        if (isAllCapsHeading(ln)) break;
-        contactLines.push(ln);
-        i++;
-        consumed++;
-      }
+      const { contactLines, nextIndex } = collectContactBlock(lines, i);
+      i = nextIndex;
       if (contactLines.length > 0) {
         paragraphs.push(
           new Paragraph({
             children: [
               new TextRun({
                 text: contactLines.join(' | '),
-                size: Math.max(16, style.bodySizeHalfPt - 2), // slightly smaller
+                size: Math.max(16, style.bodySizeHalfPt - 2),
                 font: 'Calibri',
-                color: '6B6B73', // muted foreground
+                color: '6B6B73',
               }),
             ],
             alignment: style.nameAlign === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT,
@@ -163,22 +142,20 @@ export class DocxExportService {
     }
 
     for (; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-
-      if (!trimmed) {
+      const kind = classifyLine(lines, i);
+      if (kind === 'skip') continue;
+      if (kind === 'empty') {
         paragraphs.push(new Paragraph({ spacing: { after: 100 } }));
         continue;
       }
+      const trimmed = stripMarkdown(lines[i].trim());
 
-      if (/^-{3,}$/.test(trimmed) || /^_{3,}$/.test(trimmed)) continue;
-      if (/^visa:/i.test(trimmed) || /requires.*visa/i.test(trimmed)) continue;
-
-      if (isAllCapsHeading(trimmed)) {
+      if (kind === 'heading') {
         paragraphs.push(renderHeading(trimmed, style));
         continue;
       }
 
-      if (isBulletLine(trimmed)) {
+      if (kind === 'bullet') {
         const bulletBody = trimmed.replace(/^[-•●]\s*/, '');
         paragraphs.push(
           new Paragraph({
@@ -200,11 +177,7 @@ export class DocxExportService {
         continue;
       }
 
-      // Role headers + trailing-colon sub-headings both render as bold
-      // subtitles, matching the preview's `font-semibold` treatment. This
-      // was the missing classification that caused "Senior Engineer, Acme
-      // (2020 - 2023)" lines to export as plain body instead of bold.
-      if (isRoleHeader(trimmed) || isTrailingColonSubHeading(trimmed)) {
+      if (kind === 'subtitle') {
         paragraphs.push(
           new Paragraph({
             children: [
@@ -222,6 +195,7 @@ export class DocxExportService {
         continue;
       }
 
+      // body
       paragraphs.push(
         new Paragraph({
           children: [bodyRun(trimmed)],

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib';
+import { classifyLine, stripMarkdown, collectContactBlock } from './text-rendering';
 
 export type ExportTemplate = 'clean' | 'modern' | 'compact';
 
@@ -321,29 +322,15 @@ export class PdfExportService {
 
     const lines = text.split('\n');
 
-    // Line-classification helpers — these MUST stay in sync with the rules in
-    // `DocumentPreview.tsx` so the downloaded file visually matches what the
-    // user saw on screen. If you add a new kind of line to the preview
-    // renderer, mirror it here (and in DocxExportService).
-    const isAllCapsHeading = (s: string) =>
-      s === s.toUpperCase() && s.length > 2 && s.length < 60 && /[A-Z]/.test(s);
-    const isRoleHeader = (s: string) =>
-      !isAllCapsHeading(s) &&
-      ((s.includes(',') && /\d{4}/.test(s)) || (s.length < 80 && s.endsWith(')')));
-    const isTrailingColonSubHeading = (s: string) =>
-      !isAllCapsHeading(s) && s.endsWith(':') && s.length < 80;
-    const isBulletLine = (s: string) => /^[-•●]\s+/.test(s);
-
-    // First non-empty line of a CV is the name. The preview collects the next
-    // few lines (contact info) into a single muted line joined by ` | `.
+    // Line classification is shared with DocxExportService and
+    // DocumentPreview.tsx — see text-rendering.ts for the rules. Keep the
+    // rendering in all three surfaces aligned.
     let i = 0;
-
-    // Skip leading empties
     while (i < lines.length && !lines[i].trim()) i++;
 
-    // Name
+    // Name + contact block
     if (i < lines.length && type === 'cv') {
-      const nameText = lines[i].trim();
+      const nameText = stripMarkdown(lines[i].trim());
       drawText(nameText, {
         font: bold,
         size: style.nameSize,
@@ -353,18 +340,8 @@ export class PdfExportService {
       y -= 4;
       i++;
 
-      // Consume contact lines — up to 5 non-empty lines, stopping at an
-      // ALL-CAPS heading or an empty line. Join them with a pipe.
-      const contactLines: string[] = [];
-      let consumed = 0;
-      while (i < lines.length && consumed < 5) {
-        const ln = lines[i].trim();
-        if (!ln) { i++; break; }
-        if (isAllCapsHeading(ln)) break;
-        contactLines.push(ln);
-        i++;
-        consumed++;
-      }
+      const { contactLines, nextIndex } = collectContactBlock(lines, i);
+      i = nextIndex;
       if (contactLines.length > 0) {
         drawText(contactLines.join(' | '), {
           font: regular,
@@ -376,37 +353,29 @@ export class PdfExportService {
       }
     }
 
-    // Everything else
     for (; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-
-      if (!trimmed) {
+      const kind = classifyLine(lines, i);
+      if (kind === 'skip') continue;
+      if (kind === 'empty') {
         y -= style.paragraphGap;
         continue;
       }
+      const trimmed = stripMarkdown(lines[i].trim());
 
-      if (/^-{3,}$/.test(trimmed) || /^_{3,}$/.test(trimmed)) continue;
-      if (/^visa:/i.test(trimmed) || /requires.*visa/i.test(trimmed)) continue;
-
-      if (isAllCapsHeading(trimmed)) {
+      if (kind === 'heading') {
         drawHeading(trimmed);
         continue;
       }
-
-      if (isBulletLine(trimmed)) {
+      if (kind === 'bullet') {
         drawBullet(trimmed.replace(/^[-•●]\s+/, ''));
         continue;
       }
-
-      // Role headers ("Senior Engineer, Acme (2020 - 2023)") and short
-      // trailing-colon subheads ("Languages:") both render as bold subtitles,
-      // matching the preview's `font-semibold` subtitle style.
-      if (isRoleHeader(trimmed) || isTrailingColonSubHeading(trimmed)) {
+      if (kind === 'subtitle') {
         y -= 2;
         drawText(trimmed, { font: bold, size: style.subHeadingSize, color: style.headingColor });
         continue;
       }
-
+      // kind === 'body'
       drawText(trimmed, { font: regular, size: style.bodySize });
     }
 

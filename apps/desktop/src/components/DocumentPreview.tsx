@@ -264,85 +264,117 @@ export function DocumentPreview({
           <div className={`max-w-2xl mx-auto bg-card border border-border rounded-lg my-6 min-h-[500px] ${style.wrapper}`}>
             <div className={style.body}>
               {(() => {
+                // Classifier mirrors `apps/sidecar/src/documents/text-rendering.ts`.
+                // Keep rules in sync across preview + PDF + DOCX so the file
+                // the user downloads visually matches what they saw.
                 const lines = currentText.split('\n');
+
+                const isAllCapsHeading = (s: string) =>
+                  s === s.toUpperCase() && s.length > 2 && s.length < 60 && /[A-Z]/.test(s);
+                const isBulletLine = (s: string) => /^[-•●]\s+/.test(s);
+                const isDateRangeLine = (s: string) => {
+                  if (s.length > 80) return false;
+                  const hasYear = /\b\d{4}\b/.test(s);
+                  const hasSeparator = /[-–—]/.test(s);
+                  const hasTerminator = /\b\d{4}\b|\bpresent\b|\bcurrent\b|\bongoing\b/i.test(s);
+                  return hasYear && hasSeparator && hasTerminator;
+                };
+                const stripMarkdown = (line: string) =>
+                  line
+                    .replace(/\*\*([^*\n]+?)\*\*/g, '$1')
+                    .replace(/__([^_\n]+?)__/g, '$1')
+                    .replace(/`([^`\n]+?)`/g, '$1')
+                    .replace(/^#{1,6}\s+/, '')
+                    .trim();
+
+                // Returns 'heading' | 'subtitle' | 'bullet' | 'body' | 'skip' | 'empty'
+                const classify = (idx: number): 'heading' | 'subtitle' | 'bullet' | 'body' | 'skip' | 'empty' => {
+                  const t = lines[idx]?.trim();
+                  if (!t) return 'empty';
+                  if (/^-{3,}$/.test(t) || /^_{3,}$/.test(t)) return 'skip';
+                  if (/^visa:/i.test(t) || /requires.*visa/i.test(t)) return 'skip';
+                  if (isAllCapsHeading(t)) return 'heading';
+                  if (isBulletLine(t)) return 'bullet';
+                  if (t.endsWith(':') && t.length < 80) return 'subtitle';
+                  if (t.endsWith(')') && t.length < 100) return 'subtitle';
+                  if (t.includes(',') && /\b\d{4}\b/.test(t) && t.length < 120) return 'subtitle';
+                  if (isDateRangeLine(t)) return 'subtitle';
+                  // Lookahead: if the next non-empty line is a date range, THIS
+                  // line is a role/project title. Both should be bold.
+                  for (let j = idx + 1; j < Math.min(lines.length, idx + 4); j++) {
+                    const next = lines[j]?.trim();
+                    if (!next) continue;
+                    if (isAllCapsHeading(next)) break;
+                    if (isBulletLine(next)) break;
+                    if (isDateRangeLine(next) && t.length < 100) return 'subtitle';
+                    break;
+                  }
+                  return 'body';
+                };
+
                 const elements: React.ReactNode[] = [];
-                let isContactBlock = activeTab === 'cv'; // First few lines after name are contact info
+                let i = 0;
 
-                for (let i = 0; i < lines.length; i++) {
-                  const trimmed = lines[i].trim();
+                // Skip leading empties
+                while (i < lines.length && !lines[i].trim()) i++;
 
-                  if (!trimmed) {
-                    if (isContactBlock && i > 1) isContactBlock = false;
+                // Name + contact block (CV only)
+                if (i < lines.length && activeTab === 'cv') {
+                  elements.push(
+                    <div key={`name-${i}`} className={style.name}>
+                      {stripMarkdown(lines[i].trim())}
+                    </div>,
+                  );
+                  i++;
+                  // Collect up to 5 non-empty non-heading lines as contact info.
+                  const contactLines: string[] = [];
+                  let taken = 0;
+                  while (i < lines.length && taken < 5) {
+                    const ln = lines[i]?.trim() ?? '';
+                    if (!ln) { i++; break; }
+                    if (isAllCapsHeading(ln)) break;
+                    contactLines.push(stripMarkdown(ln));
+                    i++;
+                    taken++;
+                  }
+                  if (contactLines.length > 0) {
+                    elements.push(
+                      <div key={`contact-${i}`} className={style.contact}>
+                        {contactLines.join(' | ')}
+                      </div>,
+                    );
+                  }
+                }
+
+                for (; i < lines.length; i++) {
+                  const kind = classify(i);
+                  if (kind === 'skip') continue;
+                  if (kind === 'empty') {
                     elements.push(<div key={i} className="h-2" />);
                     continue;
                   }
-
-                  const isHeading = trimmed === trimmed.toUpperCase() && trimmed.length > 2 && trimmed.length < 60 && /[A-Z]/.test(trimmed);
-
-                  // Name (first line of CV)
-                  if (i === 0 && activeTab === 'cv') {
-                    elements.push(<div key={i} className={style.name}>{trimmed}</div>);
-                    continue;
-                  }
-
-                  // Contact info (lines 1-4ish before first heading)
-                  if (isContactBlock && !isHeading && i < 6) {
-                    // Collect contact lines into a single block
-                    if (i === 1 || (i > 1 && !elements.some(e => e && (e as any).props?.className === style.contact))) {
-                      const contactLines: string[] = [];
-                      let j = i;
-                      while (j < lines.length && j < 6) {
-                        const cl = lines[j].trim();
-                        if (!cl || (cl === cl.toUpperCase() && cl.length > 2 && /[A-Z]/.test(cl))) break;
-                        contactLines.push(cl);
-                        j++;
-                      }
-                      elements.push(
-                        <div key={`contact-${i}`} className={style.contact}>
-                          {contactLines.join(' | ')}
-                        </div>
-                      );
-                      // Skip the lines we consumed
-                      for (let skip = i; skip < j - 1; skip++) {
-                        elements.push(null);
-                      }
-                      i = j - 1;
-                      isContactBlock = false;
-                      continue;
-                    }
-                    continue;
-                  }
-
-                  isContactBlock = false;
-
-                  // Section headings
-                  if (isHeading) {
+                  const trimmed = stripMarkdown(lines[i].trim());
+                  if (kind === 'heading') {
                     elements.push(<div key={i} className={style.heading}>{trimmed}</div>);
                     continue;
                   }
-
-                  // Bullet points
-                  if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('● ')) {
+                  if (kind === 'bullet') {
                     elements.push(
                       <div key={i} className={`flex gap-2 my-0.5 ${style.bullet}`}>
                         <span className="text-muted-foreground flex-shrink-0">•</span>
                         <span>{trimmed.replace(/^[-•●]\s*/, '')}</span>
-                      </div>
+                      </div>,
                     );
                     continue;
                   }
-
-                  // Subtitles (lines with commas and dates, or shorter bold-looking lines)
-                  if ((trimmed.includes(',') && /\d{4}/.test(trimmed)) || (trimmed.length < 80 && trimmed.endsWith(')'))) {
+                  if (kind === 'subtitle') {
                     elements.push(<div key={i} className={style.subtitle}>{trimmed}</div>);
                     continue;
                   }
-
-                  // Regular text
                   elements.push(<div key={i} className="my-0.5">{trimmed}</div>);
                 }
 
-                return elements.filter(Boolean);
+                return elements;
               })()}
             </div>
           </div>
