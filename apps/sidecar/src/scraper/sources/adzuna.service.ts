@@ -12,7 +12,11 @@ const COUNTRY_MAP: Record<string, string> = {
   NL: 'nl',
   SG: 'sg',
   NZ: 'nz',
-  // AE and IE not directly supported by Adzuna, skip
+  // African markets — only ZA is in the Adzuna API today. KE/NG/EG/MA/MU/RW/
+  // GH/ZW have no Adzuna endpoint, so AFRICA expansion below only yields ZA.
+  ZA: 'za',
+  // AE, IE and most African countries are not in Adzuna — scraper will skip
+  // them cleanly with a "not supported" debug log.
 };
 
 /**
@@ -21,8 +25,12 @@ const COUNTRY_MAP: Record<string, string> = {
  * all supported markets and EMEA across the European ones we support.
  */
 const REGION_EXPANSIONS: Record<string, string[]> = {
-  GLOBAL: ['US', 'UK', 'DE', 'NL', 'CA', 'AU', 'NZ', 'SG'],
+  GLOBAL: ['US', 'UK', 'DE', 'NL', 'CA', 'AU', 'NZ', 'SG', 'ZA'],
   EMEA: ['UK', 'DE', 'NL'],
+  // Only ZA is Adzuna-supported; the rest are listed so they're visible in
+  // logs and trivially addable if Adzuna adds them. Non-supported codes are
+  // skipped with a debug-level log.
+  AFRICA: ['ZA', 'KE', 'NG', 'EG', 'MA', 'MU', 'RW', 'GH', 'ZW'],
 };
 
 interface AdzunaResult {

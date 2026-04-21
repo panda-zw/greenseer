@@ -15,6 +15,16 @@ const LOCATION_MAP: Record<string, string> = {
   AE: '104305776', // UAE
   NZ: '105490917', // New Zealand
   IE: '104738515', // Ireland
+  // African markets — geoIds verified against LinkedIn public pages.
+  ZA: '104035573', // South Africa
+  KE: '100758489', // Kenya
+  NG: '105365761', // Nigeria
+  EG: '106155005', // Egypt
+  MA: '102786963', // Morocco
+  MU: '102057517', // Mauritius
+  RW: '104920310', // Rwanda
+  GH: '104149840', // Ghana
+  ZW: '104047208', // Zimbabwe
   // Worldwide — LinkedIn's own geoId for global listings. Pair with the
   // `f_WT=2` (remote) filter below so we get remote-friendly roles.
   GLOBAL: '92000000',
@@ -26,6 +36,7 @@ const LOCATION_MAP: Record<string, string> = {
  */
 const REGION_EXPANSIONS: Record<string, string[]> = {
   EMEA: ['UK', 'DE', 'NL', 'IE', 'AE'],
+  AFRICA: ['ZA', 'KE', 'NG', 'EG', 'MA', 'MU', 'RW', 'GH', 'ZW'],
 };
 
 /** Country codes that should search for remote roles rather than on-site. */

@@ -239,6 +239,7 @@ export const SOURCE_CATALOG: SourceCatalogEntry[] = [
 export const SUPPORTED_COUNTRIES: { code: string; name: string }[] = [
   { code: 'GLOBAL', name: 'Global / Unspecified' },
   { code: 'EMEA', name: 'EMEA Region' },
+  { code: 'AFRICA', name: 'Africa Region' },
   { code: 'AU', name: 'Australia' },
   { code: 'UK', name: 'United Kingdom' },
   { code: 'CA', name: 'Canada' },
@@ -249,6 +250,16 @@ export const SUPPORTED_COUNTRIES: { code: string; name: string }[] = [
   { code: 'AE', name: 'United Arab Emirates' },
   { code: 'NZ', name: 'New Zealand' },
   { code: 'IE', name: 'Ireland' },
+  // African tech markets — ordered by tech job density
+  { code: 'ZA', name: 'South Africa' },
+  { code: 'KE', name: 'Kenya' },
+  { code: 'NG', name: 'Nigeria' },
+  { code: 'EG', name: 'Egypt' },
+  { code: 'MA', name: 'Morocco' },
+  { code: 'MU', name: 'Mauritius' },
+  { code: 'RW', name: 'Rwanda' },
+  { code: 'GH', name: 'Ghana' },
+  { code: 'ZW', name: 'Zimbabwe' },
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -266,6 +277,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
       { code: 'AE', mode: 'relocate', enabled: false },
       { code: 'NZ', mode: 'relocate', enabled: false },
       { code: 'IE', mode: 'relocate', enabled: false },
+      { code: 'ZA', mode: 'relocate', enabled: false },
+      { code: 'KE', mode: 'relocate', enabled: false },
+      { code: 'NG', mode: 'relocate', enabled: false },
+      { code: 'EG', mode: 'relocate', enabled: false },
+      { code: 'MA', mode: 'relocate', enabled: false },
+      { code: 'MU', mode: 'relocate', enabled: false },
+      { code: 'RW', mode: 'relocate', enabled: false },
+      { code: 'GH', mode: 'relocate', enabled: false },
+      { code: 'ZW', mode: 'relocate', enabled: false },
     ],
     minMatchScore: 50,
     blocklist: [],

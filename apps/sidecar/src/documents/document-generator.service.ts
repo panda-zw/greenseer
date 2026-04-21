@@ -116,6 +116,88 @@ const COUNTRY_CV_INSTRUCTIONS: Record<string, string> = {
 - Length: 2 pages maximum
 - LANGUAGES section must be prominent — EMEA hiring heavily values multilingual candidates
 - No photo, no date of birth`,
+
+  // ── African markets ────────────────────────────────────────────────────
+  AFRICA: `Target market: Pan-African (covers ZA, KE, NG, EG, MA, MU, RW, GH, ZW, etc.)
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: British English
+- Length: 2-3 pages acceptable
+- Emphasise remote-work experience, international collaboration, and any regional / pan-African project exposure
+- LANGUAGES section should list all languages spoken with proficiency (English, French, Arabic, Portuguese, Swahili, etc.)
+- No photo unless the source CV already includes one`,
+
+  ZA: `Target market: South Africa
+- Document title: "CV" (the term "Resume" is less common here)
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: South African English (British spelling — "organisation", "specialised")
+- Length: 2-3 pages acceptable — SA recruiters read longer CVs than EU/US
+- Include "ID or work-permit status" placeholder at the top ONLY if the source CV already did; otherwise leave out
+- Emphasise scale signals (users, transactions, rand / USD revenue impact) — SA tech hires favour evidence of operating at scale
+- Certifications (AWS, Azure, Google Cloud, K8s, Scrum) carry weight in the SA market — promote them if present`,
+
+  KE: `Target market: Kenya ("Silicon Savannah")
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: British English
+- Length: 2 pages maximum
+- Emphasise fintech / mobile money experience if present — Kenyan tech centres heavily on M-Pesa-adjacent work
+- Mention any East African regional experience explicitly`,
+
+  NG: `Target market: Nigeria
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: British English
+- Length: 2-3 pages acceptable
+- Emphasise scale (Nigeria has the largest tech market in Africa) and any fintech / e-commerce experience
+- Promote certifications prominently — they signal trustworthiness in the NG market`,
+
+  EG: `Target market: Egypt
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: English (unless the JD is in Arabic, in which case produce an English version — most tech hiring in Egypt happens in English)
+- Length: 2-3 pages acceptable
+- Include Arabic language proficiency if the candidate has it — it is a strong signal for MENA roles
+- Emphasise experience that crosses into GCC markets (UAE, Saudi) — many EG-based roles are regional`,
+
+  MA: `Target market: Morocco
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: English or French depending on the JD — when in doubt, English
+- Length: 2 pages maximum
+- Include French language proficiency prominently if present — much of the MA tech market is Francophone / EU-facing
+- Emphasise Europe-adjacent experience; many MA roles serve French or Spanish markets`,
+
+  MU: `Target market: Mauritius
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: British English
+- Length: 2 pages maximum
+- Emphasise fintech / offshore-services experience if present — MU positions itself as a regional fintech hub
+- Multilingual ability (English + French) is a meaningful advantage — surface it clearly`,
+
+  RW: `Target market: Rwanda
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: English
+- Length: 2 pages maximum
+- Emphasise any smart-city / govtech / fintech experience — Rwanda actively recruits engineers for those sectors
+- Mention regional / East African exposure`,
+
+  GH: `Target market: Ghana
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: British English
+- Length: 2 pages maximum
+- Emphasise fintech, e-commerce, or agritech if present — Ghana's tech sector is growing fastest in those verticals`,
+
+  ZW: `Target market: Zimbabwe
+- Document title: "CV"
+- Section order (strict): CONTACT → PROFESSIONAL SUMMARY → TECHNICAL SKILLS → PROFESSIONAL EXPERIENCE → PROJECTS → EDUCATION → CERTIFICATIONS → LANGUAGES
+- Language: British English
+- Length: 2-3 pages acceptable — ZW recruiters read longer CVs
+- Emphasise any regional (SADC) or remote-international experience — most well-paying ZW tech roles serve foreign clients
+- Include professional certifications prominently`,
 };
 
 const CV_SYSTEM_PROMPT = `You are a senior career writer helping a software engineer produce a CV that tells a coherent, honest story about their career arc — tailored to a specific role — and that a thoughtful recruiter would enjoy reading.

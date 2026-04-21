@@ -317,6 +317,17 @@ export class JobUrlImporterService {
       ['SG', /\bsingapore\b/],
       ['AE', /\bunited arab emirates\b|\buae\b|\bdubai\b|\babu dhabi\b/],
       ['NZ', /\bnew zealand\b|\bauckland\b|\bwellington\b/],
+      // African markets — major cities so "Nairobi, Kenya" or just "Cape Town"
+      // both resolve correctly.
+      ['ZA', /\bsouth africa\b|\bjohannesburg\b|\bjo'?burg\b|\bcape town\b|\bdurban\b|\bpretoria\b|\bstellenbosch\b/],
+      ['KE', /\bkenya\b|\bnairobi\b|\bmombasa\b/],
+      ['NG', /\bnigeria\b|\blagos\b|\babuja\b|\bport harcourt\b/],
+      ['EG', /\begypt\b|\bcairo\b|\balexandria\b/],
+      ['MA', /\bmorocco\b|\bmaroc\b|\bcasablanca\b|\brabat\b|\bmarrakech\b/],
+      ['MU', /\bmauritius\b|\bport louis\b|\bebene\b/],
+      ['RW', /\brwanda\b|\bkigali\b/],
+      ['GH', /\bghana\b|\baccra\b|\bkumasi\b/],
+      ['ZW', /\bzimbabwe\b|\bharare\b|\bbulawayo\b/],
     ];
 
     for (const [code, re] of rules) {
@@ -325,6 +336,8 @@ export class JobUrlImporterService {
 
     // Any other European location → EMEA rather than GLOBAL.
     if (/\beurope\b|\beuropean\b|\bemea\b/.test(lower)) return 'EMEA';
+    // Generic Africa strings not already matched above → AFRICA pseudo-code.
+    if (/\bafrica\b|\bsub[- ]?saharan\b|\bsadc\b/.test(lower)) return 'AFRICA';
 
     return 'GLOBAL';
   }
