@@ -4,8 +4,18 @@ import { SettingsService } from '../settings/settings.service';
 import { ActivityService } from '../activity/activity.service';
 import { DedupService } from './dedup.service';
 import { AdzunaService } from './sources/adzuna.service';
+import { ArbeitnowService } from './sources/arbeitnow.service';
 import { LinkedInService } from './sources/linkedin.service';
 import { SeekService } from './sources/seek.service';
+import { RelocateMeService } from './sources/relocate-me.service';
+import { NextLevelJobsService } from './sources/next-level-jobs.service';
+import { IrishJobsService } from './sources/irish-jobs.service';
+import { JobsIeService } from './sources/jobs-ie.service';
+import { JaabzService } from './sources/jaabz.service';
+import { MakeItInGermanyService } from './sources/make-it-in-germany.service';
+import { StepstoneService } from './sources/stepstone.service';
+import { GlassdoorService } from './sources/glassdoor.service';
+import { XingService } from './sources/xing.service';
 import type { RawJob } from './dto/raw-job.dto';
 import type { JobSource } from '@greenseer/shared';
 
@@ -31,8 +41,18 @@ export class ScrapeOrchestratorService implements OnModuleDestroy {
     private readonly activity: ActivityService,
     private readonly dedup: DedupService,
     private readonly adzuna: AdzunaService,
+    private readonly arbeitnow: ArbeitnowService,
     private readonly linkedin: LinkedInService,
     private readonly seek: SeekService,
+    private readonly relocateMe: RelocateMeService,
+    private readonly nextLevelJobs: NextLevelJobsService,
+    private readonly irishJobs: IrishJobsService,
+    private readonly jobsIe: JobsIeService,
+    private readonly jaabz: JaabzService,
+    private readonly makeItInGermany: MakeItInGermanyService,
+    private readonly stepstone: StepstoneService,
+    private readonly glassdoor: GlassdoorService,
+    private readonly xing: XingService,
     @Optional() @Inject(JOB_PROCESSOR_TOKEN) private readonly jobProcessor?: IJobProcessor,
   ) {}
 
@@ -155,6 +175,32 @@ export class ScrapeOrchestratorService implements OnModuleDestroy {
         totalFound += result.found;
         totalNew += result.new;
       }
+
+      // HTML-scraping + API sources added after the original three. Each
+      // entry is gated by its own `sources.<id>.enabled` toggle in settings.
+      const additionalSources: Array<{
+        id: JobSource;
+        run: () => Promise<RawJob[]>;
+      }> = [
+        { id: 'arbeitnow',       run: () => this.arbeitnow.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'relocateMe',      run: () => this.relocateMe.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'nextLevelJobs',   run: () => this.nextLevelJobs.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'irishJobs',       run: () => this.irishJobs.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'jobsIe',          run: () => this.jobsIe.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'jaabz',           run: () => this.jaabz.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'makeItInGermany', run: () => this.makeItInGermany.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'stepstone',       run: () => this.stepstone.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'glassdoor',       run: () => this.glassdoor.scrape(enabledCountries, keywords, maxPages) },
+        { id: 'xing',            run: () => this.xing.scrape(enabledCountries, keywords, maxPages) },
+      ];
+
+      for (const entry of additionalSources) {
+        if (this.isCancelled) break;
+        if (!appSettings.sources[entry.id]?.enabled) continue;
+        const result = await this.runSource(entry.id, entry.run);
+        totalFound += result.found;
+        totalNew += result.new;
+      }
     } finally {
       this.isRunning = false;
       this.lastCompletedAt = new Date();
@@ -167,10 +213,8 @@ export class ScrapeOrchestratorService implements OnModuleDestroy {
 
     if (totalFound === 0 && totalNew === 0) {
       // Check if any source actually ran
-      const adzunaOn = appSettings.sources.adzuna.enabled;
-      const linkedinOn = appSettings.sources.linkedin.enabled;
-      const seekOn = appSettings.sources.seek.enabled;
-      if (!adzunaOn && !linkedinOn && !seekOn) {
+      const anyEnabled = Object.values(appSettings.sources).some((s) => s?.enabled);
+      if (!anyEnabled) {
         this.activity.warn('Scraper', 'No sources enabled', 'Enable at least one source in Settings > Sources');
       }
     }
@@ -202,14 +246,30 @@ export class ScrapeOrchestratorService implements OnModuleDestroy {
         return this.runSource('adzuna', () =>
           this.adzuna.scrape(keys.adzunaAppId!, keys.adzunaKey!, enabledCountries, keywords, maxPages),
         );
+      case 'arbeitnow':
+        return this.runSource('arbeitnow', () => this.arbeitnow.scrape(enabledCountries, keywords, maxPages));
       case 'linkedin':
-        return this.runSource('linkedin', () =>
-          this.linkedin.scrape(enabledCountries, keywords, maxPages),
-        );
+        return this.runSource('linkedin', () => this.linkedin.scrape(enabledCountries, keywords, maxPages));
       case 'seek':
-        return this.runSource('seek', () =>
-          this.seek.scrape(enabledCountries, keywords, maxPages),
-        );
+        return this.runSource('seek', () => this.seek.scrape(enabledCountries, keywords, maxPages));
+      case 'relocateMe':
+        return this.runSource('relocateMe', () => this.relocateMe.scrape(enabledCountries, keywords, maxPages));
+      case 'nextLevelJobs':
+        return this.runSource('nextLevelJobs', () => this.nextLevelJobs.scrape(enabledCountries, keywords, maxPages));
+      case 'irishJobs':
+        return this.runSource('irishJobs', () => this.irishJobs.scrape(enabledCountries, keywords, maxPages));
+      case 'jobsIe':
+        return this.runSource('jobsIe', () => this.jobsIe.scrape(enabledCountries, keywords, maxPages));
+      case 'jaabz':
+        return this.runSource('jaabz', () => this.jaabz.scrape(enabledCountries, keywords, maxPages));
+      case 'makeItInGermany':
+        return this.runSource('makeItInGermany', () => this.makeItInGermany.scrape(enabledCountries, keywords, maxPages));
+      case 'stepstone':
+        return this.runSource('stepstone', () => this.stepstone.scrape(enabledCountries, keywords, maxPages));
+      case 'glassdoor':
+        return this.runSource('glassdoor', () => this.glassdoor.scrape(enabledCountries, keywords, maxPages));
+      case 'xing':
+        return this.runSource('xing', () => this.xing.scrape(enabledCountries, keywords, maxPages));
     }
   }
 

@@ -55,12 +55,37 @@ interface FeedResponse {
   counts: Record<string, number>;
 }
 
-const STATUS_TABS: { value: string; label: string; badgeColor: string }[] = [
-  { value: 'all', label: 'All', badgeColor: 'bg-foreground/10 text-foreground' },
-  { value: 'matched', label: 'Matched', badgeColor: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
-  { value: 'eligible', label: 'Eligible', badgeColor: 'bg-blue-500/15 text-blue-600 dark:text-blue-400' },
-  { value: 'pending', label: 'Pending', badgeColor: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
-  { value: 'ineligible', label: 'Ineligible', badgeColor: 'bg-red-500/15 text-red-600 dark:text-red-400' },
+const STATUS_TABS: { value: string; label: string; badgeColor: string; tooltip: string }[] = [
+  {
+    value: 'all',
+    label: 'All',
+    badgeColor: 'bg-foreground/10 text-foreground',
+    tooltip: 'Every job in your feed, regardless of analysis state.',
+  },
+  {
+    value: 'matched',
+    label: 'Matched',
+    badgeColor: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    tooltip: 'Passed visa check AND your CV matches the role — ready to apply.',
+  },
+  {
+    value: 'eligible',
+    label: 'Eligible',
+    badgeColor: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    tooltip: 'Passed visa check, still waiting on CV-match analysis.',
+  },
+  {
+    value: 'pending',
+    label: 'Pending',
+    badgeColor: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    tooltip: 'Queued for AI analysis — visa + CV match haven’t run yet.',
+  },
+  {
+    value: 'ineligible',
+    label: 'Ineligible',
+    badgeColor: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    tooltip: 'Failed the visa-sponsorship check — the role does not appear to sponsor.',
+  },
 ];
 
 export function JobFeed() {
@@ -192,7 +217,7 @@ export function JobFeed() {
       <div className="flex-shrink-0 overflow-x-auto border-b border-border">
         <div className="flex items-center gap-x-2 px-5 min-w-max">
           <div className="flex items-center" role="tablist" aria-label="Job status filter">
-            {STATUS_TABS.map(({ value, label, badgeColor }) => {
+            {STATUS_TABS.map(({ value, label, badgeColor, tooltip }) => {
               const count = value === 'all' ? counts.all : counts[value];
               const isActive = statusFilter === value;
               return (
@@ -200,6 +225,7 @@ export function JobFeed() {
                   key={value}
                   role="tab"
                   aria-selected={isActive}
+                  title={tooltip}
                   onClick={() => setStatusFilterAndReset(value)}
                   className={`flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                     isActive

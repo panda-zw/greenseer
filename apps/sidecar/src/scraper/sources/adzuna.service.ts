@@ -15,6 +15,16 @@ const COUNTRY_MAP: Record<string, string> = {
   // AE and IE not directly supported by Adzuna, skip
 };
 
+/**
+ * Region pseudo-codes expanded into Adzuna-supported country codes before
+ * searching. Adzuna has no "worldwide" endpoint, so GLOBAL fans out across
+ * all supported markets and EMEA across the European ones we support.
+ */
+const REGION_EXPANSIONS: Record<string, string[]> = {
+  GLOBAL: ['US', 'UK', 'DE', 'NL', 'CA', 'AU', 'NZ', 'SG'],
+  EMEA: ['UK', 'DE', 'NL'],
+};
+
 interface AdzunaResult {
   id: string;
   title: string;
@@ -47,7 +57,15 @@ export class AdzunaService {
   ): Promise<RawJob[]> {
     const allJobs: RawJob[] = [];
 
-    for (const countryCode of countryCodes) {
+    // Expand region pseudo-codes (GLOBAL, EMEA) into real country codes,
+    // then de-dupe so overlapping selections don't cause repeat searches.
+    const expandedCountries = Array.from(
+      new Set(
+        countryCodes.flatMap((code) => REGION_EXPANSIONS[code] ?? [code]),
+      ),
+    );
+
+    for (const countryCode of expandedCountries) {
       const adzunaCountry = COUNTRY_MAP[countryCode];
       if (!adzunaCountry) {
         this.logger.debug(`Adzuna does not support country: ${countryCode}`);

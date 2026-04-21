@@ -15,7 +15,21 @@ const LOCATION_MAP: Record<string, string> = {
   AE: '104305776', // UAE
   NZ: '105490917', // New Zealand
   IE: '104738515', // Ireland
+  // Worldwide — LinkedIn's own geoId for global listings. Pair with the
+  // `f_WT=2` (remote) filter below so we get remote-friendly roles.
+  GLOBAL: '92000000',
 };
+
+/**
+ * Pseudo-codes that expand into multiple real country codes before searching.
+ * Used when the user selects a region instead of a single country.
+ */
+const REGION_EXPANSIONS: Record<string, string[]> = {
+  EMEA: ['UK', 'DE', 'NL', 'IE', 'AE'],
+};
+
+/** Country codes that should search for remote roles rather than on-site. */
+const REMOTE_ONLY_CODES = new Set(['GLOBAL']);
 
 @Injectable()
 export class LinkedInService {
@@ -46,18 +60,33 @@ export class LinkedInService {
       const listingPage = await browser.newPage();
       const detailPage = await browser.newPage();
 
-      this.logger.log(`LinkedIn: searching ${countryCodes.length} countries, ${keywords.length} keywords, maxPages=${maxPages}`);
+      // Expand region pseudo-codes (EMEA, etc.) into their constituent
+      // country codes. De-duplicated so selecting both "EMEA" and "UK"
+      // doesn't scrape the UK twice.
+      const expandedCountries = Array.from(
+        new Set(
+          countryCodes.flatMap((code) => REGION_EXPANSIONS[code] ?? [code]),
+        ),
+      );
 
-      for (const countryCode of countryCodes) {
+      this.logger.log(
+        `LinkedIn: searching ${expandedCountries.length} countries (from ${countryCodes.length} requested), ${keywords.length} keywords, maxPages=${maxPages}`,
+      );
+
+      for (const countryCode of expandedCountries) {
         const locationId = LOCATION_MAP[countryCode];
         if (!locationId) {
           this.logger.warn(`LinkedIn: no location ID for country "${countryCode}", skipping`);
           continue;
         }
 
+        const remoteOnly = REMOTE_ONLY_CODES.has(countryCode);
+
         for (const keyword of keywords) {
           try {
-            this.logger.log(`LinkedIn: "${keyword}" in ${countryCode} (geoId=${locationId})...`);
+            this.logger.log(
+              `LinkedIn: "${keyword}" in ${countryCode} (geoId=${locationId}${remoteOnly ? ', remote' : ''})...`,
+            );
             const jobs = await this.searchJobs(
               listingPage,
               detailPage,
@@ -65,6 +94,7 @@ export class LinkedInService {
               locationId,
               countryCode,
               maxPages,
+              remoteOnly,
             );
             this.logger.log(`LinkedIn: "${keyword}" in ${countryCode} → ${jobs.length} jobs`);
             allJobs.push(...jobs);
@@ -124,13 +154,18 @@ export class LinkedInService {
     locationId: string,
     countryCode: string,
     maxPages: number,
+    remoteOnly: boolean = false,
   ): Promise<RawJob[]> {
     const jobs: RawJob[] = [];
     const encodedKeyword = encodeURIComponent(keyword);
+    // LinkedIn work-type filter: f_WT=2 means Remote. We only add it when
+    // the caller explicitly wants remote-only (currently the GLOBAL code)
+    // so per-country searches keep their existing on-site + hybrid results.
+    const workTypeFilter = remoteOnly ? '&f_WT=2' : '';
 
     for (let pageNum = 0; pageNum < maxPages; pageNum++) {
       const start = pageNum * 25;
-      const url = `https://www.linkedin.com/jobs/search/?keywords=${encodedKeyword}&location=&geoId=${locationId}&f_SB2=6&start=${start}`;
+      const url = `https://www.linkedin.com/jobs/search/?keywords=${encodedKeyword}&location=&geoId=${locationId}&f_SB2=6${workTypeFilter}&start=${start}`;
 
       this.logger.log(`LinkedIn fetching: ${countryCode} page ${pageNum + 1}`);
 

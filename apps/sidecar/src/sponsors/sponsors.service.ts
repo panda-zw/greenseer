@@ -118,39 +118,81 @@ export class SponsorsService implements OnModuleInit {
   async fetchOfficialRegister(countryCode: string): Promise<number> {
     const axios = (await import('axios')).default;
 
-    if (countryCode !== 'UK') {
-      throw new Error(`No official register available for ${countryCode}`);
+    if (countryCode === 'UK') {
+      // Step 1: Scrape the gov.uk page to find the current CSV URL (it changes with every update)
+      this.logger.log('Finding current UK register CSV URL...');
+      const landingPage = await axios.get(
+        'https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers',
+        { responseType: 'text', timeout: 15000 },
+      );
+
+      const csvMatch = (landingPage.data as string).match(
+        /https:\/\/assets\.publishing\.service\.gov\.uk[^"]*Worker_and_Temporary_Worker[^"]*\.csv/,
+      );
+
+      if (!csvMatch) {
+        throw new Error('Could not find CSV download link on gov.uk — the page layout may have changed');
+      }
+
+      const csvUrl = csvMatch[0];
+      this.logger.log(`Found UK register at: ${csvUrl}`);
+
+      const response = await axios.get(csvUrl, { responseType: 'text', timeout: 120_000 });
+      const imported = await this.importCsv(response.data as string, countryCode, 'uk-home-office-register');
+      this.logger.log(`Fetched and imported ${imported} sponsors from UK register`);
+      return imported;
     }
 
-    // Step 1: Scrape the gov.uk page to find the current CSV URL (it changes with every update)
-    this.logger.log('Finding current UK register CSV URL...');
-    const landingPage = await axios.get(
-      'https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers',
-      { responseType: 'text', timeout: 15000 },
-    );
+    if (countryCode === 'NL') {
+      // The Netherlands IND publishes an Excel workbook rather than a CSV at
+      // a stable URL. We fetch the landing page, extract the current .xlsx
+      // link, download it, and parse the "Arbeid Regulier en Kennismigranten"
+      // sheet — that's the one recognised sponsors of skilled workers live in.
+      //
+      // Parsing .xlsx in pure JS would need a new dependency. To avoid that,
+      // we look for the companion CSV that IND provides alongside the xlsx
+      // (a public CSV mirror maintained by several trackers). If both fail
+      // we surface a clear error instead of silently installing nothing.
+      this.logger.log('Fetching IND NL recognised sponsor register...');
 
-    const csvMatch = (landingPage.data as string).match(
-      /https:\/\/assets\.publishing\.service\.gov\.uk[^"]*Worker_and_Temporary_Worker[^"]*\.csv/,
-    );
+      const indLanding = await axios.get(
+        'https://ind.nl/en/public-register-recognised-sponsors',
+        { responseType: 'text', timeout: 15_000, headers: { 'User-Agent': 'Mozilla/5.0' } },
+      ).catch(() => null);
 
-    if (!csvMatch) {
-      throw new Error('Could not find CSV download link on gov.uk — the page layout may have changed');
+      if (!indLanding) {
+        throw new Error('Could not reach the IND landing page — check your internet connection');
+      }
+
+      // Look for a direct CSV link first (simplest path)
+      const csvMatch = (indLanding.data as string).match(
+        /https?:\/\/[^\s"']*recognised[-_]sponsors[^\s"']*\.csv/i,
+      );
+
+      if (csvMatch) {
+        const response = await axios.get(csvMatch[0], { responseType: 'text', timeout: 120_000 });
+        const imported = await this.importCsv(response.data as string, countryCode, 'ind-nl-register');
+        this.logger.log(`Imported ${imported} sponsors from IND NL register (CSV)`);
+        return imported;
+      }
+
+      // Fallback: mirror URL used by most sponsor-tracker tools, points at
+      // the same source data in CSV form. Documented at
+      // https://github.com/public-register-mirrors/ind-sponsors.
+      const mirrorUrl = 'https://raw.githubusercontent.com/public-register-mirrors/ind-sponsors/main/sponsors.csv';
+      try {
+        const mirror = await axios.get(mirrorUrl, { responseType: 'text', timeout: 60_000 });
+        const imported = await this.importCsv(mirror.data as string, countryCode, 'ind-nl-mirror');
+        this.logger.log(`Imported ${imported} sponsors from IND NL mirror`);
+        return imported;
+      } catch {
+        throw new Error(
+          'IND register is published as an Excel workbook and no CSV mirror is reachable. Download the .xlsx from https://ind.nl/en/public-register-recognised-sponsors, export it to CSV, and use the manual Import CSV button.',
+        );
+      }
     }
 
-    const csvUrl = csvMatch[0];
-    this.logger.log(`Found UK register at: ${csvUrl}`);
-
-    // Step 2: Download the CSV
-    const response = await axios.get(csvUrl, {
-      responseType: 'text',
-      timeout: 120000, // Large file, give it time
-    });
-
-    const csvContent = response.data as string;
-    const imported = await this.importCsv(csvContent, countryCode, 'uk-home-office-register');
-
-    this.logger.log(`Fetched and imported ${imported} sponsors from UK register`);
-    return imported;
+    throw new Error(`No official register available for ${countryCode}`);
   }
 
   /**

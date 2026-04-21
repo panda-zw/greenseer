@@ -70,7 +70,21 @@ export function Shell({ children }: ShellProps) {
             ) : status?.lastCompletedAt ? (
               <>
                 Last search: {formatTimeAgo(status.lastCompletedAt)}
-                {status.lastResult && ` · ${status.lastResult.found} found, ${status.lastResult.new} new`}
+                {status.lastResult && (
+                  <>
+                    {' · '}
+                    <span title="Total hits across all sources — most are duplicates between sources or with existing jobs.">
+                      {status.lastResult.found.toLocaleString()} hits
+                    </span>
+                    {' · '}
+                    <span
+                      className="text-emerald-600 dark:text-emerald-400 font-medium"
+                      title="Unique new jobs added to your feed after dedup."
+                    >
+                      {status.lastResult.new.toLocaleString()} new
+                    </span>
+                  </>
+                )}
               </>
             ) : (
               'No searches yet'

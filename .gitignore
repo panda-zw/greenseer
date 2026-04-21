@@ -44,3 +44,6 @@ pnpm-debug.log*
 
 # OS
 Thumbs.db
+
+# Local Claude-specific notes (not shared)
+CLAUDE.md

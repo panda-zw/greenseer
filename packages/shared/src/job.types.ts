@@ -1,4 +1,19 @@
-export type JobSource = 'adzuna' | 'linkedin' | 'seek';
+import type { StructuredCV } from './cv-structured.types';
+
+export type JobSource =
+  | 'adzuna'
+  | 'arbeitnow'
+  | 'linkedin'
+  | 'seek'
+  | 'relocateMe'
+  | 'nextLevelJobs'
+  | 'irishJobs'
+  | 'jobsIe'
+  | 'jaabz'
+  | 'makeItInGermany'
+  | 'stepstone'
+  | 'glassdoor'
+  | 'xing';
 
 export type ApplicationStatus =
   | 'saved'
@@ -73,9 +88,30 @@ export interface JobFeedItem extends JobDto {
 export interface CvProfileDto {
   id: string;
   name: string;
+  /** Canonical raw text. Source of truth. Saved verbatim. */
   body: string;
+  /**
+   * Derived structured view, persisted so user edits to the structured form
+   * are not lost. `null` means no cached structured view exists yet — the
+   * client should trigger a parse (AI or heuristic) before showing structured
+   * mode. Saving `body` invalidates this cache on the server.
+   */
+  structured: StructuredCV | null;
   skills: string[];
   isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectDto {
+  id: string;
+  name: string;
+  description: string;
+  techStack: string[];
+  url: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  highlights: string[];
   createdAt: string;
   updatedAt: string;
 }

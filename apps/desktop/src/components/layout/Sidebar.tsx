@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
-import { Briefcase, FileText, FilePen, ClipboardList, Activity, Building2, Settings, Search, Square } from 'lucide-react';
+import { Briefcase, FileText, FilePen, ClipboardList, Activity, Building2, Settings, Search, Square, Linkedin, FolderKanban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -9,7 +9,9 @@ import { toast } from 'sonner';
 const navItems = [
   { to: '/feed', label: 'Job Feed', icon: Briefcase },
   { to: '/cv', label: 'CV Manager', icon: FileText },
+  { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/generator', label: 'Generator', icon: FilePen },
+  { to: '/linkedin', label: 'LinkedIn', icon: Linkedin },
   { to: '/tracker', label: 'Tracker', icon: ClipboardList },
   { to: '/sponsors', label: 'Sponsors', icon: Building2 },
   { to: '/activity', label: 'Activity', icon: Activity },
@@ -27,7 +29,10 @@ export function Sidebar() {
   const runSearch = useMutation({
     mutationFn: () => apiPost<{ totalFound: number; totalNew: number }>('/scraper/run'),
     onSuccess: (data) => {
-      toast.success(`Search complete: ${data.totalFound} found, ${data.totalNew} new`);
+      toast.success(
+        `Search complete: ${data.totalNew.toLocaleString()} new jobs added`,
+        { description: `${data.totalFound.toLocaleString()} hits across all sources (most are cross-source duplicates)` },
+      );
       queryClient.invalidateQueries({ queryKey: ['job-feed'] });
       queryClient.invalidateQueries({ queryKey: ['scraper-status'] });
       queryClient.invalidateQueries({ queryKey: ['activity'] });
